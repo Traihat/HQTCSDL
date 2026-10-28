@@ -1,0 +1,7 @@
+# Ignore large raw UAV dataset (>100MB GitHub limit)
+20181029_dX_0830_0900.csv
+
+# Ignore Jupyter & Python cache
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
