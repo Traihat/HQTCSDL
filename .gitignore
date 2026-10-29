@@ -1,0 +1,27 @@
+﻿# Du lieu giao thong goc
+data/raw/
+*.zip
+*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Bao mat
+.env
+*.pem
+*.key
+
+# SQL Server backups
+*.bak
+*.mdf
+*.ldf
+*.trn
+
+# File tam va log
+*.log
+*.tmp
+.DS_Store
