@@ -1,0 +1,10 @@
+﻿Ma_Thi_Nghiem,Ten_Dataset,Phien_Ban,Mo_Hinh,Khoang_Gop_Giay,Ty_Le_Train,Tam_Du_Bao_Phut,MAE,RMSE,MAPE_pct,R2,Tham_So_Cau_Hinh
+1,UAV_pNEUMA_20181029_0830_0900,v1.0,Naive_Baseline,10,0.8,5,7.2047,8.4592,2.6,-0.7616,"{""method"": ""last_value""}"
+3,UAV_pNEUMA_20181029_0830_0900,v1.0,Prophet,10,0.8,5,8.8054,9.9745,3.25,-1.4492,"{""seasonality_mode"": ""additive"", ""period_sec"": 180}"
+2,UAV_pNEUMA_20181029_0830_0900,v1.0,ARIMA,10,0.8,5,21.0498,22.2326,7.72,-11.168,"{""p"": 1, ""d"": 0, ""q"": 1, ""aic"": 520.21}"
+4,UAV_pNEUMA_20181029_0830_0900,v1.0,Naive_Baseline,15,0.8,5,5.714,6.5627,2.08,-0.129,"{""method"": ""last_value""}"
+6,UAV_pNEUMA_20181029_0830_0900,v1.0,Prophet,15,0.8,5,8.9167,10.0439,3.29,-1.6443,"{""seasonality_mode"": ""additive"", ""period_sec"": 180}"
+5,UAV_pNEUMA_20181029_0830_0900,v1.0,ARIMA,15,0.8,5,24.9213,25.7171,9.15,-16.336,"{""p"": 1, ""d"": 0, ""q"": 1, ""aic"": 411.42}"
+9,UAV_pNEUMA_20181029_0830_0900,v1.0,Prophet,30,0.8,5,8.0328,9.0836,2.95,-2.9506,"{""seasonality_mode"": ""additive"", ""period_sec"": 180}"
+7,UAV_pNEUMA_20181029_0830_0900,v1.0,Naive_Baseline,30,0.8,5,14.092,14.8145,5.13,-9.5079,"{""method"": ""last_value""}"
+8,UAV_pNEUMA_20181029_0830_0900,v1.0,ARIMA,30,0.8,5,30.3052,30.7317,11.08,-44.218,"{""p"": 1, ""d"": 0, ""q"": 1, ""aic"": 195.41}"
