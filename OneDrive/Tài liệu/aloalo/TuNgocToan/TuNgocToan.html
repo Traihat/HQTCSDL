@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="vi" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Từ Ngọc Toàn | IT Student Portfolio</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font: Roboto 400 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        luxury: {
+                            black: '#000000',
+                            card: '#0a0a0a',
+                            border: '#262626',
+                            borderLight: '#e5e5e5',
+                            gray: '#737373',
+                            lightBg: '#f9f9f9',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Strict No Rounded Corners Rule */
+        * {
+            border-radius: 0px !important;
+            font-family: 'Roboto', sans-serif !important;
+            font-weight: 400 !important;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333333;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ffffff;
+        }
+
+        /* Border Grid Effect */
+        .sharp-border {
+            border: 1px solid #262626;
+        }
+        
+        .light-sharp-border {
+            border: 1px solid #e5e5e5;
+        }
+
+        /* Monochrome button hover transitions */
+        .btn-luxury-dark {
+            background-color: #000000;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            transition: all 0.3s ease;
+        }
+        .btn-luxury-dark:hover {
+            background-color: #ffffff;
+            color: #000000;
+        }
+
+        .btn-luxury-light {
+            background-color: #ffffff;
+            color: #000000;
+            border: 1px solid #000000;
+            transition: all 0.3s ease;
+        }
+        .btn-luxury-light:hover {
+            background-color: #000000;
+            color: #ffffff;
+        }
+
+        /* Image hover zoom */
+        .img-container {
+            overflow: hidden;
+        }
+        .img-container img {
+            transition: transform 0.5s ease;
+        }
+        .img-container:hover img {
+            transform: scale(1.03);
+        }
+    </style>
+</head>
+<body class="bg-black text-white selection:bg-white selection:text-black">
+
+    <!-- Header Navigation -->
+    <header class="fixed top-0 left-0 w-full z-50 bg-black/90 backdrop-blur-md border-b border-neutral-800">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <a href="#home" class="text-2xl tracking-widest text-white border border-white px-3 py-1 font-normal">
+                TNT
+            </a>
+
+            <!-- Desktop Menu -->
+            <nav class="hidden md:flex items-center space-x-10 text-sm tracking-widest uppercase text-neutral-400">
+                <a href="#home" class="hover:text-white transition-colors duration-200">Trang Chủ</a>
+                <a href="#about" class="hover:text-white transition-colors duration-200">Giới Thiệu</a>
+                <a href="#skills" class="hover:text-white transition-colors duration-200">Kỹ Năng</a>
+                <a href="#projects" class="hover:text-white transition-colors duration-200">Dự Án</a>
+                <a href="#contact" class="hover:text-white transition-colors duration-200">Liên Hệ</a>
+            </nav>
+
+            <!-- Mobile Menu Toggle Button -->
+            <button id="mobile-menu-btn" class="md:hidden text-white p-2 focus:outline-none" aria-label="Toggle Navigation">
+                <i class="fa-solid fa-bars text-xl" id="menu-icon"></i>
+            </button>
+        </div>
+
+        <!-- Mobile Navigation Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-black border-b border-neutral-800 px-6 py-6 space-y-4 text-sm tracking-widest uppercase text-neutral-400">
+            <a href="#home" class="block hover:text-white transition-colors py-2">Trang Chủ</a>
+            <a href="#about" class="block hover:text-white transition-colors py-2">Giới Thiệu</a>
+            <a href="#skills" class="block hover:text-white transition-colors py-2">Kỹ Năng</a>
+            <a href="#projects" class="block hover:text-white transition-colors py-2">Dự Án</a>
+            <a href="#contact" class="block hover:text-white transition-colors py-2">Liên Hệ</a>
+        </div>
+    </header>
+
+    <!-- 1. HOME SECTION -->
+    <section id="home" class="min-h-screen pt-28 pb-16 flex items-center justify-center relative border-b border-neutral-800">
+        <div class="max-w-7xl mx-auto px-6 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            
+            <!-- Left Info Block -->
+            <div class="lg:col-span-7 space-y-8 text-left">
+                <div class="inline-block border border-neutral-700 px-4 py-1.5 text-xs tracking-widest text-neutral-400 uppercase">
+                    Portfolio Cá Nhân
+                </div>
+                
+                <div class="space-y-4">
+                    <h1 class="text-4xl sm:text-6xl md:text-7xl tracking-wider text-white uppercase leading-tight">
+                        Từ Ngọc Toàn
+                    </h1>
+                    <div class="h-0.5 w-24 bg-white"></div>
+                    <p class="text-xl sm:text-2xl text-neutral-400 tracking-widest uppercase">
+                        CHỨC DANH: <span class="text-white">IT STUDENT</span>
+                    </p>
+                </div>
+
+                <p class="text-neutral-400 max-w-xl text-base leading-relaxed">
+                    Chào mừng bạn đến với trang cá nhân của tôi. Tôi là sinh viên ngành Công nghệ Thông tin với định hướng phát triển trong lĩnh vực lập trình web và công nghệ phần mềm.
+                </p>
+
+                <!-- CTA Action Buttons -->
+                <div class="flex flex-wrap gap-4 pt-4">
+                    <a href="#contact" class="btn-luxury-light px-8 py-4 text-xs uppercase tracking-widest inline-flex items-center space-x-3">
+                        <span>Contact Me</span>
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                    </a>
+                    <button onclick="downloadCV()" class="btn-luxury-dark px-8 py-4 text-xs uppercase tracking-widest inline-flex items-center space-x-3">
+                        <i class="fa-solid fa-download text-xs"></i>
+                        <span>Download CV</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Avatar Profile Image -->
+            <div class="lg:col-span-5 flex justify-center">
+                <div class="relative w-full max-w-md p-3 border border-neutral-800 bg-neutral-950">
+                    <div class="img-container relative border border-neutral-700 aspect-[3/4] bg-neutral-900">
+                        <img 
+                            src="Avatar.jpg" 
+                            alt="Từ Ngọc Toàn Profile Avatar" 
+                            class="w-full h-full object-cover transition-all duration-700"
+                            onerror="this.onerror=null; this.src='https://placehold.co/600x800/111111/ffffff?text=Tu+Ngoc+Toan';"
+                        />
+                    </div>
+                    <!-- Frame Accent Corners -->
+                    <div class="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-white"></div>
+                    <div class="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-white"></div>
+                    <div class="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-white"></div>
+                    <div class="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-white"></div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- 2. ABOUT ME SECTION -->
+    <section id="about" class="py-24 border-b border-neutral-800 bg-black">
+        <div class="max-w-7xl mx-auto px-6">
+            
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-neutral-800 pb-8">
+                <div>
+                    <span class="text-xs tracking-widest text-neutral-500 uppercase block mb-2">01 / Thông tin</span>
+                    <h2 class="text-3xl sm:text-5xl uppercase tracking-wider text-white">About Me</h2>
+                </div>
+                <p class="text-neutral-400 text-sm tracking-widest uppercase mt-4 md:mt-0">
+                    Học Vấn & Định Hướng Phấn Đấu
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- University Box -->
+                <div class="p-8 border border-neutral-800 bg-neutral-950 space-y-4 hover:border-neutral-500 transition-colors duration-300">
+                    <div class="w-12 h-12 border border-white flex items-center justify-center text-white mb-6">
+                        <i class="fa-solid fa-graduation-cap text-lg"></i>
+                    </div>
+                    <span class="text-xs uppercase tracking-widest text-neutral-500 block">Trường Đại Học Đang Theo Học</span>
+                    <h3 class="text-xl sm:text-2xl text-white leading-snug">
+                        Trường Đại học Giao Thông Vận Tải TP. Hồ Chí Minh
+                    </h3>
+                    <p class="text-neutral-400 text-sm leading-relaxed pt-2 border-t border-neutral-800">
+                        Môi trường đào tạo uy tín, trang bị kiến thức nền tảng vững chắc về công nghệ thông tin và tinh thần chủ động trong nghiên cứu ứng dụng.
+                    </p>
+                </div>
+
+                <!-- Major Box -->
+                <div class="p-8 border border-neutral-800 bg-neutral-950 space-y-4 hover:border-neutral-500 transition-colors duration-300">
+                    <div class="w-12 h-12 border border-white flex items-center justify-center text-white mb-6">
+                        <i class="fa-solid fa-laptop-code text-lg"></i>
+                    </div>
+                    <span class="text-xs uppercase tracking-widest text-neutral-500 block">Chuyên Ngành Đào Tạo</span>
+                    <h3 class="text-xl sm:text-2xl text-white leading-snug">
+                        Công Nghệ Thông Tin
+                    </h3>
+                    <p class="text-neutral-400 text-sm leading-relaxed pt-2 border-t border-neutral-800">
+                        Tập trung phát triển kỹ năng tư duy thuật toán, cấu trúc dữ liệu, kỹ thuật lập trình phần mềm và xây dựng giao diện ứng dụng web tối ưu.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- 3. SKILLS SECTION -->
+    <section id="skills" class="py-24 border-b border-neutral-800 bg-neutral-950">
+        <div class="max-w-7xl mx-auto px-6">
+            
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-neutral-800 pb-8">
+                <div>
+                    <span class="text-xs tracking-widest text-neutral-500 uppercase block mb-2">02 / Năng lực</span>
+                    <h2 class="text-3xl sm:text-5xl uppercase tracking-wider text-white">Skills</h2>
+                </div>
+                <p class="text-neutral-400 text-sm tracking-widest uppercase mt-4 md:mt-0">
+                    Công Nghệ & Công Cụ Sử Dụng
+                </p>
+            </div>
+
+            <!-- Skills Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                <!-- Skill Category 1 -->
+                <div class="p-6 border border-neutral-800 bg-black space-y-6 hover:border-white transition-colors duration-300">
+                    <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
+                        <h3 class="text-base uppercase tracking-widest text-white">Programming</h3>
+                        <i class="fa-solid fa-code text-neutral-400"></i>
+                    </div>
+                    <ul class="space-y-3 text-sm text-neutral-300">
+                        <li class="flex items-center justify-between border-b border-neutral-900 pb-2">
+                            <span>C++</span>
+                            <span class="text-xs text-neutral-500 font-mono">Core</span>
+                        </li>
+                        <li class="flex items-center justify-between border-b border-neutral-900 pb-2">
+                            <span>JavaScript</span>
+                            <span class="text-xs text-neutral-500 font-mono">ES6+</span>
+                        </li>
+                        <li class="flex items-center justify-between">
+                            <span>Python</span>
+                            <span class="text-xs text-neutral-500 font-mono">Basic</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Skill Category 2 -->
+                <div class="p-6 border border-neutral-800 bg-black space-y-6 hover:border-white transition-colors duration-300">
+                    <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
+                        <h3 class="text-base uppercase tracking-widest text-white">Frontend</h3>
+                        <i class="fa-solid fa-layer-group text-neutral-400"></i>
+                    </div>
+                    <ul class="space-y-3 text-sm text-neutral-300">
+                        <li class="flex items-center justify-between border-b border-neutral-900 pb-2">
+                            <span>HTML5</span>
+                            <span class="text-xs text-neutral-500 font-mono">Semantic</span>
+                        </li>
+                        <li class="flex items-center justify-between">
+                            <span>CSS3</span>
+                            <span class="text-xs text-neutral-500 font-mono">Responsive</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Skill Category 3 -->
+                <div class="p-6 border border-neutral-800 bg-black space-y-6 hover:border-white transition-colors duration-300">
+                    <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
+                        <h3 class="text-base uppercase tracking-widest text-white">Database</h3>
+                        <i class="fa-solid fa-database text-neutral-400"></i>
+                    </div>
+                    <ul class="space-y-3 text-sm text-neutral-300">
+                        <li class="flex items-center justify-between">
+                            <span>SQL Server</span>
+                            <span class="text-xs text-neutral-500 font-mono">RDBMS</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Skill Category 4 -->
+                <div class="p-6 border border-neutral-800 bg-black space-y-6 hover:border-white transition-colors duration-300">
+                    <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
+                        <h3 class="text-base uppercase tracking-widest text-white">Tools</h3>
+                        <i class="fa-solid fa-screwdriver-wrench text-neutral-400"></i>
+                    </div>
+                    <ul class="space-y-3 text-sm text-neutral-300">
+                        <li class="flex items-center justify-between border-b border-neutral-900 pb-2">
+                            <span>Git</span>
+                            <span class="text-xs text-neutral-500 font-mono">VCS</span>
+                        </li>
+                        <li class="flex items-center justify-between border-b border-neutral-900 pb-2">
+                            <span>GitHub</span>
+                            <span class="text-xs text-neutral-500 font-mono">Cloud</span>
+                        </li>
+                        <li class="flex items-center justify-between">
+                            <span>VS Code</span>
+                            <span class="text-xs text-neutral-500 font-mono">IDE</span>
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. PROJECTS SECTION -->
+    <section id="projects" class="py-24 border-b border-neutral-800 bg-black">
+        <div class="max-w-7xl mx-auto px-6">
+            
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-neutral-800 pb-8">
+                <div>
+                    <span class="text-xs tracking-widest text-neutral-500 uppercase block mb-2">03 / Thực hành</span>
+                    <h2 class="text-3xl sm:text-5xl uppercase tracking-wider text-white">Featured Project</h2>
+                </div>
+                <p class="text-neutral-400 text-sm tracking-widest uppercase mt-4 md:mt-0">
+                    Sản Phẩm Lập Trình Nổi Bật
+                </p>
+            </div>
+
+            <!-- Single Featured Project Container -->
+            <div class="border border-neutral-800 bg-neutral-950 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden hover:border-neutral-500 transition-colors duration-300">
+                
+                <!-- Project Image Preview -->
+                <div class="lg:col-span-7 img-container border-b lg:border-b-0 lg:border-r border-neutral-800 bg-black relative">
+                    <img 
+                        src="Youtube.jpg" 
+                        alt="Youtube Web Project Interface Preview" 
+                        class="w-full h-full object-cover object-top min-h-[300px] lg:min-h-[420px]"
+                        onerror="this.onerror=null; this.src='https://placehold.co/1200x675/111111/ffffff?text=Youtube+Project+Preview';"
+                    />
+                    <div class="absolute top-4 left-4 border border-black bg-white/90 backdrop-blur-sm text-black px-3 py-1 text-xs uppercase tracking-widest">
+                        Web Frontend Project
+                    </div>
+                </div>
+
+                <!-- Project Info Content -->
+                <div class="lg:col-span-5 p-8 sm:p-10 flex flex-col justify-between space-y-8">
+                    <div class="space-y-4">
+                        <span class="text-xs font-mono text-neutral-500 uppercase tracking-widest">Dự Án #01</span>
+                        <h3 class="text-3xl uppercase tracking-wider text-white">Youtube Clone UI</h3>
+                        <p class="text-neutral-400 text-sm leading-relaxed">
+                            Giao diện người dùng mô phỏng nền tảng xem video Youtube. Dự án tập trung vào cấu trúc layout responsive, định dạng hiển thị danh sách video, thanh điều hướng sidebar và tìm kiếm trực quan.
+                        </p>
+                    </div>
+
+                    <!-- Tech Tags -->
+                    <div class="space-y-3 border-t border-b border-neutral-800 py-4">
+                        <span class="text-xs text-neutral-500 uppercase tracking-widest block">Công Nghệ Sử Dụng:</span>
+                        <div class="flex flex-wrap gap-2 text-xs font-mono">
+                            <span class="border border-neutral-700 px-3 py-1 bg-black text-neutral-300">HTML5</span>
+                            <span class="border border-neutral-700 px-3 py-1 bg-black text-neutral-300">CSS3</span>
+                            <span class="border border-neutral-700 px-3 py-1 bg-black text-neutral-300">JavaScript</span>
+                        </div>
+                    </div>
+
+                    <!-- Link Button -->
+                    <div>
+                        <a 
+                            href="https://dashing-cranachan-c443d6.netlify.app/youtube.html" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            class="btn-luxury-light w-full py-4 text-center text-xs uppercase tracking-widest inline-flex items-center justify-center space-x-3"
+                        >
+                            <span>Xem Trực Tiếp Dự Án</span>
+                            <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </section>
+
+    <!-- 5. CONTACT SECTION -->
+    <section id="contact" class="py-24 bg-neutral-950 border-b border-neutral-800">
+        <div class="max-w-7xl mx-auto px-6">
+            
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 border-b border-neutral-800 pb-8">
+                <div>
+                    <span class="text-xs tracking-widest text-neutral-500 uppercase block mb-2">04 / Kết nối</span>
+                    <h2 class="text-3xl sm:text-5xl uppercase tracking-wider text-white">Contact Me</h2>
+                </div>
+                <p class="text-neutral-400 text-sm tracking-widest uppercase mt-4 md:mt-0">
+                    Hãy Trao Đổi Cùng Tôi
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                
+                <!-- Contact Direct Info -->
+                <div class="lg:col-span-5 space-y-8">
+                    <p class="text-neutral-400 text-sm leading-relaxed">
+                        Tôi luôn sẵn sàng tiếp nhận các cơ hội học hỏi, hợp tác làm dự án hoặc trao đổi chuyên môn CNTT. Đừng ngần ngại liên hệ với tôi qua các kênh dưới đây.
+                    </p>
+
+                    <div class="space-y-6">
+                        <!-- Email Item -->
+                        <div class="flex items-start space-x-4 p-4 border border-neutral-800 bg-black">
+                            <div class="w-10 h-10 border border-neutral-700 flex items-center justify-center text-white shrink-0">
+                                <i class="fa-regular fa-envelope text-sm"></i>
+                            </div>
+                            <div class="overflow-hidden">
+                                <span class="text-xs text-neutral-500 uppercase tracking-widest block">Email</span>
+                                <a href="mailto:toantn7621@ut.edu.vn" class="text-sm text-white hover:underline truncate block">
+                                    toantn7621@ut.edu.vn
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Phone Item -->
+                        <div class="flex items-start space-x-4 p-4 border border-neutral-800 bg-black">
+                            <div class="w-10 h-10 border border-neutral-700 flex items-center justify-center text-white shrink-0">
+                                <i class="fa-solid fa-phone text-sm"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs text-neutral-500 uppercase tracking-widest block">Số Điện Thoại</span>
+                                <a href="tel:0797116105" class="text-sm text-white hover:underline block">
+                                    0797116105
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- GitHub Item -->
+                        <div class="flex items-start space-x-4 p-4 border border-neutral-800 bg-black">
+                            <div class="w-10 h-10 border border-neutral-700 flex items-center justify-center text-white shrink-0">
+                                <i class="fa-brands fa-github text-sm"></i>
+                            </div>
+                            <div class="overflow-hidden">
+                                <span class="text-xs text-neutral-500 uppercase tracking-widest block">GitHub / Contact Email</span>
+                                <a href="mailto:toanlagi056@gmail.com" class="text-sm text-white hover:underline truncate block">
+                                    toanlagi056@gmail.com
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Message Form -->
+                <div class="lg:col-span-7 border border-neutral-800 bg-black p-8 sm:p-10">
+                    <form id="contact-form" onsubmit="handleFormSubmit(event)" class="space-y-6">
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <!-- Input Name -->
+                            <div class="space-y-2">
+                                <label for="name" class="text-xs uppercase tracking-widest text-neutral-400 block">Họ Và Tên</label>
+                                <input 
+                                    type="text" 
+                                    id="name" 
+                                    name="name"
+                                    required
+                                    placeholder="Nguyễn Văn A" 
+                                    class="w-full bg-neutral-950 border border-neutral-800 px-4 py-3 text-sm text-white focus:outline-none focus:border-white transition-colors"
+                                />
+                            </div>
+
+                            <!-- Input Email -->
+                            <div class="space-y-2">
+                                <label for="email" class="text-xs uppercase tracking-widest text-neutral-400 block">Địa Chỉ Email</label>
+                                <input 
+                                    type="email" 
+                                    id="email" 
+                                    name="email"
+                                    required
+                                    placeholder="example@domain.com" 
+                                    class="w-full bg-neutral-950 border border-neutral-800 px-4 py-3 text-sm text-white focus:outline-none focus:border-white transition-colors"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Input Subject -->
+                        <div class="space-y-2">
+                            <label for="subject" class="text-xs uppercase tracking-widest text-neutral-400 block">Tiêu Đề Tin Nhắn</label>
+                            <input 
+                                type="text" 
+                                id="subject" 
+                                name="subject"
+                                required
+                                placeholder="Trao đổi công việc / Dự án..." 
+                                class="w-full bg-neutral-950 border border-neutral-800 px-4 py-3 text-sm text-white focus:outline-none focus:border-white transition-colors"
+                            />
+                        </div>
+
+                        <!-- Input Message -->
+                        <div class="space-y-2">
+                            <label for="message" class="text-xs uppercase tracking-widest text-neutral-400 block">Nội Dung Tin Nhắn</label>
+                            <textarea 
+                                id="message" 
+                                name="message"
+                                rows="5" 
+                                required
+                                placeholder="Nhập nội dung tin nhắn của bạn tại đây..." 
+                                class="w-full bg-neutral-950 border border-neutral-800 px-4 py-3 text-sm text-white focus:outline-none focus:border-white transition-colors resize-none"
+                            ></textarea>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button type="submit" class="btn-luxury-light w-full py-4 text-xs uppercase tracking-widest">
+                            Gửi Tin Nhắn
+                        </button>
+                    </form>
+
+                    <!-- Success Alert Message Box -->
+                    <div id="form-alert" class="hidden mt-6 p-4 border border-white bg-neutral-900 text-white text-xs tracking-wider uppercase text-center">
+                        <i class="fa-solid fa-check mr-2"></i> Cảm ơn bạn! Tin nhắn của bạn đã được gửi thành công.
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="py-12 bg-black border-t border-neutral-900 text-center text-neutral-500 text-xs tracking-widest uppercase">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+            <div>
+                &copy; <span id="year"></span> Từ Ngọc Toàn. All Rights Reserved.
+            </div>
+            <div class="flex space-x-6 text-sm">
+                <a href="mailto:toantn7621@ut.edu.vn" class="hover:text-white transition-colors" aria-label="Email"><i class="fa-regular fa-envelope"></i></a>
+                <a href="tel:0797116105" class="hover:text-white transition-colors" aria-label="Phone"><i class="fa-solid fa-phone"></i></a>
+                <a href="https://dashing-cranachan-c443d6.netlify.app/youtube.html" target="_blank" class="hover:text-white transition-colors" aria-label="Youtube Demo"><i class="fa-brands fa-youtube"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript Interactions -->
+    <script>
+        // Set Current Year in Footer
+        document.getElementById('year').textContent = new Date().getFullYear();
+
+        // Mobile Menu Navigation Toggle
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        const menuIcon = document.getElementById('menu-icon');
+
+        mobileMenuBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+            if (mobileMenu.classList.contains('hidden')) {
+                menuIcon.classList.remove('fa-xmark');
+                menuIcon.classList.add('fa-bars');
+            } else {
+                menuIcon.classList.remove('fa-bars');
+                menuIcon.classList.add('fa-xmark');
+            }
+        });
+
+        // Close mobile menu when clicking menu item
+        const mobileLinks = mobileMenu.querySelectorAll('a');
+        mobileLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+                menuIcon.classList.remove('fa-xmark');
+                menuIcon.classList.add('fa-bars');
+            });
+        });
+
+        // Download CV Mock Action Function
+        function downloadCV() {
+            const cvContent = `CURRICULUM VITAE
+Họ và tên: Từ Ngọc Toàn
+Chức danh: IT Student
+Trường: Trường Đại học Giao Thông Vận Tải TP. Hồ Chí Minh
+Chuyên ngành: Công Nghệ Thông Tin
+Email: toantn7621@ut.edu.vn
+Số điện thoại: 0797116105
+GitHub/Email: toanlagi056@gmail.com
+
+KỸ NĂNG:
+- Lập trình: C++, JavaScript, Python
+- Frontend: HTML, CSS
+- Cơ sở dữ liệu: SQL Server
+- Công cụ: Git, GitHub, VS Code
+
+DỰ ÁN NỔI BẬT:
+- Youtube Web Project: https://dashing-cranachan-c443d6.netlify.app/youtube.html`;
+
+            const blob = new Blob([cvContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'CV_Tu_Ngoc_Toan.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Contact Form Handle Submit
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            const alertBox = document.getElementById('form-alert');
+            const form = document.getElementById('contact-form');
+            
+            // Display custom alert message box inside page
+            alertBox.classList.remove('hidden');
+            form.reset();
+
+            // Auto hide notification after 5 seconds
+            setTimeout(() => {
+                alertBox.classList.add('hidden');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
