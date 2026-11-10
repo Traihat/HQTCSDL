@@ -62,3 +62,80 @@ CREATE TABLE dbo.DatasetImports (
     imported_at             DATETIME2     NOT NULL DEFAULT SYSDATETIME()
 );
 
+-- 2. Bảng DynamicZones (Module 1, 2, 3, 4, 5, 6)
+CREATE TABLE dbo.DynamicZones (
+    zone_id                 INT IDENTITY(1,1) PRIMARY KEY,
+    import_id               INT           NOT NULL,
+    zone_code               VARCHAR(50)   NOT NULL,
+    zone_name               NVARCHAR(150) NOT NULL,
+    partition_method        NVARCHAR(80)  NOT NULL,
+    x_min_m                 FLOAT         NOT NULL,
+    x_max_m                 FLOAT         NOT NULL,
+    y_min_m                 FLOAT         NOT NULL,
+    y_max_m                 FLOAT         NOT NULL,
+    road_length_km          FLOAT         NOT NULL CHECK (road_length_km > 0),
+    CONSTRAINT FK_DynamicZones_Import FOREIGN KEY (import_id) REFERENCES dbo.DatasetImports(import_id) ON DELETE CASCADE
+);
+
+-- 3. Bảng DynamicTimeFrames (Module 1, 2, 3, 4, 6)
+CREATE TABLE dbo.DynamicTimeFrames (
+    timeframe_id            INT IDENTITY(1,1) PRIMARY KEY,
+    import_id               INT           NOT NULL,
+    timeframe_code          VARCHAR(50)   NOT NULL,
+    timeframe_label         NVARCHAR(120) NOT NULL,
+    start_time_str          VARCHAR(30)   NOT NULL,
+    end_time_str            VARCHAR(30)   NOT NULL,
+    start_epoch_sec         FLOAT         NOT NULL,
+    end_epoch_sec           FLOAT         NOT NULL,
+    duration_minutes        FLOAT         NOT NULL CHECK (duration_minutes > 0),
+    is_peak_timeframe       BIT           NOT NULL DEFAULT 0,
+    CONSTRAINT FK_DynamicTimeFrames_Import FOREIGN KEY (import_id) REFERENCES dbo.DatasetImports(import_id) ON DELETE CASCADE
+);
+
+-- 4. Bảng CleanedTrajectories (Module 1, 2, 4)
+CREATE TABLE dbo.CleanedTrajectories (
+    trajectory_id           BIGINT IDENTITY(1,1) PRIMARY KEY,
+    import_id               INT           NOT NULL,
+    zone_id                 INT           NOT NULL,
+    timeframe_id            INT           NOT NULL,
+    vehicle_id              VARCHAR(60)   NOT NULL,
+    vehicle_type            NVARCHAR(50)  NOT NULL,
+    recorded_time_str       VARCHAR(30)   NOT NULL,
+    time_sec                FLOAT         NOT NULL,
+    x_coord_m               FLOAT         NOT NULL,
+    y_coord_m               FLOAT         NOT NULL,
+    speed_kmh               FLOAT         NOT NULL CHECK (speed_kmh >= 0 AND speed_kmh <= 150),
+    accel_ms2               FLOAT         NOT NULL CHECK (accel_ms2 >= -15 AND accel_ms2 <= 15),
+    lane_no                 INT           NOT NULL DEFAULT 1,
+    CONSTRAINT FK_Traj_Import FOREIGN KEY (import_id) REFERENCES dbo.DatasetImports(import_id) ON DELETE CASCADE,
+    CONSTRAINT FK_Traj_Zone   FOREIGN KEY (zone_id) REFERENCES dbo.DynamicZones(zone_id),
+    CONSTRAINT FK_Traj_TF     FOREIGN KEY (timeframe_id) REFERENCES dbo.DynamicTimeFrames(timeframe_id)
+);
+
+-- 5. Bảng TrafficPatternMetrics (Module 2, 3, 4, 6)
+CREATE TABLE dbo.TrafficPatternMetrics (
+    metric_id               INT IDENTITY(1,1) PRIMARY KEY,
+    import_id               INT           NOT NULL,
+    zone_id                 INT           NOT NULL,
+    timeframe_id            INT           NOT NULL,
+    window_index            INT           NOT NULL,
+    window_time_label       VARCHAR(30)   NOT NULL,
+    window_duration_sec     INT           NOT NULL CHECK (window_duration_sec > 0),
+    vehicle_count           INT           NOT NULL CHECK (vehicle_count >= 0),
+    car_count               INT           NOT NULL DEFAULT 0,
+    motorbike_count         INT           NOT NULL DEFAULT 0,
+    bus_truck_count         INT           NOT NULL DEFAULT 0,
+    avg_speed_kmh           FLOAT         NOT NULL CHECK (avg_speed_kmh >= 0),
+    traffic_density_veh_km  FLOAT         NOT NULL CHECK (traffic_density_veh_km >= 0),
+    traffic_flow_veh_h      FLOAT         NOT NULL CHECK (traffic_flow_veh_h >= 0),
+    slow_vehicle_ratio_pct  FLOAT         NOT NULL DEFAULT 0,
+    is_peak_hour            BIT           NOT NULL DEFAULT 0,
+    is_hotspot              BIT           NOT NULL DEFAULT 0,
+    hotspot_location        NVARCHAR(255) NULL,
+    hotspot_score           FLOAT         NOT NULL DEFAULT 0,
+    congestion_level        VARCHAR(30)   NOT NULL CHECK (congestion_level IN ('Free Flow', 'Moderate', 'Heavy', 'Gridlock')),
+    CONSTRAINT FK_Metrics_Import FOREIGN KEY (import_id) REFERENCES dbo.DatasetImports(import_id) ON DELETE CASCADE,
+    CONSTRAINT FK_Metrics_Zone   FOREIGN KEY (zone_id) REFERENCES dbo.DynamicZones(zone_id),
+    CONSTRAINT FK_Metrics_TF     FOREIGN KEY (timeframe_id) REFERENCES dbo.DynamicTimeFrames(timeframe_id)
+);
+
