@@ -867,3 +867,169 @@ def process_and_ingest_uploaded_file(
         traj_records,
     )
 
+    # Tính toán chỉ số giao thông theo từng cửa sổ thời gian (window_index) cho từng Khu vực động
+    total_span_sec = max(float(df_clean["time_sec"].max() - df_clean["time_sec"].min()), 60.0)
+    if total_span_sec <= 1200:
+        win_freq = "30s"
+        win_fmt = "%H:%M:%S"
+        win_dur_sec = 30
+    elif total_span_sec <= 2400:
+        win_freq = "1min"
+        win_fmt = "%H:%M"
+        win_dur_sec = 60
+    else:
+        win_freq = "5min"
+        win_fmt = "%H:%M"
+        win_dur_sec = 300
+
+    df_clean["_win_label"] = df_clean["_dt"].dt.floor(win_freq).dt.strftime(win_fmt)
+    win_labels_ordered = list(dict.fromkeys(df_clean.sort_values("time_sec")["_win_label"].tolist()))
+
+    metric_rows = []
+    for zid, z_df in df_clean.groupby("zone_id"):
+        road_len_km = float(zone_id_to_meta[int(zid)]["road_length_km"])
+        z_name = str(zone_id_to_meta[int(zid)]["zone_name"])
+
+        temp_zone_metrics = []
+        by_win = {w_lbl: w_df for w_lbl, w_df in z_df.groupby("_win_label", sort=False)}
+
+        for w_idx, w_lbl in enumerate(win_labels_ordered, start=1):
+            w_df = by_win.get(w_lbl)
+            if w_df is None or w_df.empty:
+                continue
+            tf_id = int(w_df["timeframe_id"].mode().iloc[0])
+            veh_cnt = int(w_df["vehicle_id"].nunique())
+            v_types = w_df["vehicle_type"].astype(str).str.lower()
+            car_cnt = int((v_types.str.contains("car|taxi|oto")).sum())
+            moto_cnt = int((v_types.str.contains("motor|bike|xe_may")).sum())
+            bt_cnt = max(0, len(w_df) - car_cnt - moto_cnt)
+            avg_spd = round(float(w_df["speed_kmh"].mean()), 2)
+            density = round(float(veh_cnt / max(road_len_km, 0.2)), 2)
+            flow = round(float(density * avg_spd), 2)
+            slow_pct = round(float((w_df["speed_kmh"] < 15.0).mean() * 100.0), 2)
+            med_x = round(float(w_df["x_coord_m"].median()), 1)
+            med_y = round(float(w_df["y_coord_m"].median()), 1)
+            dom_lane = int(w_df["lane_no"].mode().iloc[0])
+
+            if avg_spd >= 28.0:
+                cong_lvl = "Free Flow"
+            elif avg_spd >= 20.0:
+                cong_lvl = "Moderate"
+            elif avg_spd >= 13.0:
+                cong_lvl = "Heavy"
+            else:
+                cong_lvl = "Gridlock"
+
+            temp_zone_metrics.append({
+                "zone_id": int(zid),
+                "timeframe_id": tf_id,
+                "window_index": w_idx,
+                "window_time_label": str(w_lbl),
+                "vehicle_count": veh_cnt,
+                "car_count": car_cnt,
+                "motorbike_count": moto_cnt,
+                "bus_truck_count": bt_cnt,
+                "avg_speed_kmh": avg_spd,
+                "traffic_density_veh_km": density,
+                "traffic_flow_veh_h": flow,
+                "slow_vehicle_ratio_pct": slow_pct,
+                "hotspot_location": f"{z_name} - Làn {dom_lane} (X≈{med_x}m, Y≈{med_y}m)",
+                "congestion_level": cong_lvl,
+            })
+
+        if not temp_zone_metrics:
+            continue
+        dens_arr = np.array([m["traffic_density_veh_km"] for m in temp_zone_metrics], dtype=float)
+        p75_dens = float(np.percentile(dens_arr, 75))
+        max_dens = max(float(dens_arr.max()), 1.0)
+
+        for m in temp_zone_metrics:
+            is_pk = 1 if m["traffic_density_veh_km"] >= p75_dens else 0
+            h_score = round(
+                (m["traffic_density_veh_km"] / max_dens) * (1.0 + m["slow_vehicle_ratio_pct"] / 100.0),
+                3,
+            )
+            is_hs = 1 if h_score >= 1.05 or m["congestion_level"] in ("Heavy", "Gridlock") else 0
+            metric_rows.append((
+                import_id,
+                m["zone_id"],
+                m["timeframe_id"],
+                m["window_index"],
+                m["window_time_label"],
+                win_dur_sec,
+                m["vehicle_count"],
+                m["car_count"],
+                m["motorbike_count"],
+                m["bus_truck_count"],
+                m["avg_speed_kmh"],
+                m["traffic_density_veh_km"],
+                m["traffic_flow_veh_h"],
+                m["slow_vehicle_ratio_pct"],
+                is_pk,
+                is_hs,
+                m["hotspot_location"],
+                h_score,
+                m["congestion_level"],
+            ))
+
+    cur.executemany(
+        """
+        INSERT INTO TrafficPatternMetrics (
+            import_id, zone_id, timeframe_id, window_index, window_time_label, window_duration_sec,
+            vehicle_count, car_count, motorbike_count, bus_truck_count,
+            avg_speed_kmh, traffic_density_veh_km, traffic_flow_veh_h, slow_vehicle_ratio_pct,
+            is_peak_hour, is_hotspot, hotspot_location, hotspot_score, congestion_level
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        metric_rows,
+    )
+    conn.commit()
+    conn.close()
+
+    # Tự động huấn luyện ARIMA & Prophet (Ngày gốc + Dự báo 2 ngày sau đó), khởi tạo Thực nghiệm (Module 5) & Báo cáo (Module 6)
+    run_forecasting_for_all_dynamic_zones(import_id=import_id, db_path=db_path)
+    seed_default_experiments(import_id=import_id, db_path=db_path)
+    seed_default_reports(import_id=import_id, db_path=db_path)
+
+    return {
+        "status": "SUCCESS",
+        "import_id": import_id,
+        "dataset_uuid": dataset_uuid,
+        "checksum_sha256": checksum_sha256,
+        "storage_path": stored_path,
+        "metadata": dataset_metadata,
+        "file_name": file_name,
+        "raw_rows": n_raw,
+        "cleaned_rows": len(df_clean),
+        "dynamic_zones": [z["zone_name"] for z in zones_meta],
+        "dynamic_timeframes": [t["timeframe_label"] for t in timeframes_meta],
+        "message": PROCESS_SUCCESS_TEXT,
+    }
+
+
+def ensure_initial_database_ready(db_path: Path = DB_PATH) -> None:
+    """Create missing tables without seeding or deleting user datasets."""
+    init_db(db_path)
+
+
+def delete_old_database_and_data(db_path: Path = DB_PATH) -> dict:
+    """Xóa sạch database và dữ liệu cũ, trả về đúng thông báo chuẩn theo yêu cầu."""
+    return clear_all_database_data(db_path)
+
+
+if __name__ == "__main__":
+    print("=" * 95)
+    print("🚀 CHẠY KIỂM TRA MODULE 1 (TRAFFIC DATASET MANAGEMENT) & CSDL 9 BẢNG...")
+    print("=" * 95)
+    if len(sys.argv) > 1 and Path(sys.argv[1]).exists():
+        target_p = Path(sys.argv[1])
+        res = process_and_ingest_uploaded_file(file_name=target_p.name, file_path=target_p, db_path=DB_PATH)
+        print(f"✅ {res['message']}")
+        print(f"   • File nạp vào   : {res['file_name']} ({res['raw_rows']} dòng gốc -> {res['cleaned_rows']} dòng sạch)")
+        print(f"   • Khu vực động   : {', '.join(res['dynamic_zones'])}")
+        print(f"   • Khung giờ động : {', '.join(res['dynamic_timeframes'])}")
+    else:
+        ensure_initial_database_ready(DB_PATH)
+        print(f"✅ {PROCESS_SUCCESS_TEXT}")
+    print("\nBảng kiểm tra số dòng hiện tại trong 9 bảng của UrbanTrafficDynamicDB:")
+    print(get_table_counts_df(DB_PATH).to_string(index=False))
