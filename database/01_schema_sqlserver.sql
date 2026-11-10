@@ -139,3 +139,112 @@ CREATE TABLE dbo.TrafficPatternMetrics (
     CONSTRAINT FK_Metrics_TF     FOREIGN KEY (timeframe_id) REFERENCES dbo.DynamicTimeFrames(timeframe_id)
 );
 
+-- 6. Bảng ForecastComparisons (Module 3, 4, 6)
+CREATE TABLE dbo.ForecastComparisons (
+    comparison_id           INT IDENTITY(1,1) PRIMARY KEY,
+    import_id               INT           NOT NULL,
+    zone_id                 INT           NOT NULL,
+    arima_order_str         VARCHAR(60)   NOT NULL,
+    arima_mae               FLOAT         NOT NULL,
+    arima_rmse              FLOAT         NOT NULL,
+    arima_mape_pct          FLOAT         NOT NULL,
+    arima_r2                FLOAT         NOT NULL,
+    prophet_seasonality_str VARCHAR(100)  NOT NULL,
+    prophet_mae             FLOAT         NOT NULL,
+    prophet_rmse            FLOAT         NOT NULL,
+    prophet_mape_pct        FLOAT         NOT NULL,
+    prophet_r2              FLOAT         NOT NULL,
+    better_model            VARCHAR(20)   NOT NULL CHECK (better_model IN ('ARIMA', 'Prophet')),
+    rmse_improvement_pct    FLOAT         NOT NULL,
+    commentary_text         NVARCHAR(1200) NOT NULL,
+    created_at              DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT FK_ForecastComp_Import FOREIGN KEY (import_id) REFERENCES dbo.DatasetImports(import_id) ON DELETE CASCADE,
+    CONSTRAINT FK_ForecastComp_Zone   FOREIGN KEY (zone_id) REFERENCES dbo.DynamicZones(zone_id)
+);
+
+-- 7. Bảng ForecastPoints (Module 3, 4, 6 — Hỗ trợ Filter Dự báo 2 Ngày sau đó & Filter Khung giờ)
+CREATE TABLE dbo.ForecastPoints (
+    point_id                INT IDENTITY(1,1) PRIMARY KEY,
+    comparison_id           INT           NOT NULL,
+    timeframe_id            INT           NULL,
+    day_offset              INT           NOT NULL DEFAULT 0 CHECK (day_offset IN (0, 1, 2)),
+    forecast_date_label     NVARCHAR(60)  NOT NULL DEFAULT N'Ngày gốc (Day 0)',
+    step_index              INT           NOT NULL,
+    time_label              VARCHAR(40)   NOT NULL,
+    phase_type              VARCHAR(20)   NOT NULL CHECK (phase_type IN ('Train', 'Test', 'Future_Day1', 'Future_Day2')),
+    actual_density          FLOAT         NULL,
+    arima_predicted         FLOAT         NOT NULL,
+    arima_lower_95          FLOAT         NOT NULL,
+    arima_upper_95          FLOAT         NOT NULL,
+    prophet_predicted       FLOAT         NOT NULL,
+    prophet_lower_95        FLOAT         NOT NULL,
+    prophet_upper_95        FLOAT         NOT NULL,
+    CONSTRAINT FK_ForecastPoints_Comp FOREIGN KEY (comparison_id) REFERENCES dbo.ForecastComparisons(comparison_id) ON DELETE CASCADE
+);
+
+-- 8. Bảng ExperimentRuns (Module 5: Experiment Management & Reproducibility)
+CREATE TABLE dbo.ExperimentRuns (
+    experiment_id             INT IDENTITY(1,1) PRIMARY KEY,
+    import_id                 INT           NOT NULL,
+    zone_id                   INT           NOT NULL,
+    experiment_code           VARCHAR(40)   NOT NULL,
+    experiment_name           NVARCHAR(200) NOT NULL,
+    temporal_interval_sec     INT           NOT NULL CHECK (temporal_interval_sec > 0),
+    train_ratio               FLOAT         NOT NULL CHECK (train_ratio >= 0.5 AND train_ratio <= 0.95),
+    arima_order_str           VARCHAR(40)   NOT NULL,
+    prophet_fourier_k         INT           NOT NULL DEFAULT 3,
+    prophet_changepoint_scale FLOAT         NOT NULL DEFAULT 0.15,
+    random_seed               INT           NOT NULL DEFAULT 42,
+    dataset_version           VARCHAR(30)   NOT NULL DEFAULT 'v1.0',
+    software_version          VARCHAR(40)   NOT NULL DEFAULT 'UTA-Platform v2.0',
+    arima_mae                 FLOAT         NOT NULL,
+    arima_rmse                FLOAT         NOT NULL,
+    arima_mape_pct            FLOAT         NOT NULL,
+    arima_r2                  FLOAT         NOT NULL,
+    prophet_mae               FLOAT         NOT NULL,
+    prophet_rmse              FLOAT         NOT NULL,
+    prophet_mape_pct          FLOAT         NOT NULL,
+    prophet_r2                FLOAT         NOT NULL,
+    winner_model              VARCHAR(20)   NOT NULL CHECK (winner_model IN ('ARIMA', 'Prophet')),
+    execution_time_ms         FLOAT         NOT NULL,
+    reproducibility_hash      VARCHAR(64)   NOT NULL,
+    notes                     NVARCHAR(500) NULL,
+    created_at                DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT FK_Experiment_Import FOREIGN KEY (import_id) REFERENCES dbo.DatasetImports(import_id) ON DELETE CASCADE,
+    CONSTRAINT FK_Experiment_Zone   FOREIGN KEY (zone_id) REFERENCES dbo.DynamicZones(zone_id)
+);
+
+-- 9. Bảng GeneratedReports (Module 6: Reporting & PDF/Excel Export)
+CREATE TABLE dbo.GeneratedReports (
+    report_id                 INT IDENTITY(1,1) PRIMARY KEY,
+    import_id                 INT           NOT NULL,
+    report_code               VARCHAR(40)   NOT NULL,
+    report_title              NVARCHAR(250) NOT NULL,
+    report_type               VARCHAR(50)   NOT NULL CHECK (report_type IN ('Traffic_Analysis', 'Forecast_2Days', 'Performance_Experiment', 'Comprehensive_Full')),
+    export_format             VARCHAR(20)   NOT NULL CHECK (export_format IN ('PDF', 'EXCEL', 'WEB_PREVIEW')),
+    zone_scope                NVARCHAR(150) NOT NULL,
+    horizon_scope             NVARCHAR(100) NOT NULL,
+    summary_highlights        NVARCHAR(1000) NOT NULL,
+    generated_at              DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
+    CONSTRAINT FK_Report_Import FOREIGN KEY (import_id) REFERENCES dbo.DatasetImports(import_id) ON DELETE CASCADE
+);
+GO
+
+-- Stored Procedure hỗ trợ nút Xóa Database & Dữ liệu cũ ở Module 1 an toàn 100% trên SQL Server
+CREATE PROCEDURE dbo.sp_ClearAllDatabaseData
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DELETE FROM dbo.GeneratedReports;
+    DELETE FROM dbo.ExperimentRuns;
+    DELETE FROM dbo.ForecastPoints;
+    DELETE FROM dbo.ForecastComparisons;
+    DELETE FROM dbo.TrafficPatternMetrics;
+    DELETE FROM dbo.CleanedTrajectories;
+    DELETE FROM dbo.DynamicTimeFrames;
+    DELETE FROM dbo.DynamicZones;
+    DELETE FROM dbo.DatasetImports;
+    SELECT N'Da xoa thanh cong database va du lieu cu. San sang de nhan du lieu moi' AS StatusMessage;
+END;
+GO
+
