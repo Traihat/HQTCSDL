@@ -83,3 +83,109 @@ def _sha256_file(file_path: Path) -> str:
             digest.update(chunk)
     return digest.hexdigest()
 
+
+def _parse_dataset_metadata(file_name: str, manual: dict | None = None) -> dict:
+    match = re.search(
+        r"(?P<date>\d{8})_(?P<drone>d[a-z0-9]+)_(?P<start>\d{4})_(?P<end>\d{4})",
+        Path(file_name).name,
+        flags=re.IGNORECASE,
+    )
+    metadata = {
+        "capture_date": None,
+        "drone_id": None,
+        "start_time": None,
+        "end_time": None,
+        "duration_minutes": None,
+    }
+    if match:
+        try:
+            capture_date = datetime.strptime(match.group("date"), "%Y%m%d").date()
+            start = datetime.strptime(match.group("start"), "%H%M").time()
+            end = datetime.strptime(match.group("end"), "%H%M").time()
+        except ValueError:
+            match = None
+        else:
+            start_minutes = start.hour * 60 + start.minute
+            end_minutes = end.hour * 60 + end.minute
+            duration = (end_minutes - start_minutes) % (24 * 60)
+            if duration > 0:
+                metadata.update({
+                    "capture_date": capture_date.isoformat(),
+                    "drone_id": match.group("drone").lower(),
+                    "start_time": start.strftime("%H:%M"),
+                    "end_time": end.strftime("%H:%M"),
+                    "duration_minutes": duration,
+                })
+
+    manual = manual or {}
+    for key in ("capture_date", "drone_id", "start_time", "end_time"):
+        value = manual.get(key)
+        if value is not None and str(value).strip():
+            metadata[key] = str(value).strip()
+    try:
+        if metadata["capture_date"]:
+            metadata["capture_date"] = datetime.strptime(
+                metadata["capture_date"], "%Y-%m-%d"
+            ).date().isoformat()
+        for key in ("start_time", "end_time"):
+            if metadata[key]:
+                metadata[key] = datetime.strptime(metadata[key], "%H:%M").strftime("%H:%M")
+    except ValueError as exc:
+        raise ValueError("Metadata thủ công không hợp lệ; ngày phải là YYYY-MM-DD, giờ phải là HH:MM.") from exc
+    if metadata["start_time"] and metadata["end_time"]:
+        start = datetime.strptime(metadata["start_time"], "%H:%M")
+        end = datetime.strptime(metadata["end_time"], "%H:%M")
+        metadata["duration_minutes"] = int(
+            (end.hour * 60 + end.minute - start.hour * 60 - start.minute) % (24 * 60)
+        ) or None
+        if metadata["duration_minutes"] is None:
+            raise ValueError("Thời gian kết thúc phải khác thời gian bắt đầu.")
+    return metadata
+
+
+def _store_original_file(
+    file_name: str,
+    file_bytes: bytes | None,
+    source_path: Path | None,
+    dataset_uuid: str,
+    storage_root: Path,
+) -> str:
+    extension = Path(file_name).suffix.lower()
+    dataset_dir = storage_root / dataset_uuid
+    dataset_dir.mkdir(parents=True, exist_ok=False)
+    destination = dataset_dir / f"original{extension}"
+    if file_bytes is not None:
+        with destination.open("wb") as target:
+            target.write(file_bytes)
+    elif source_path is not None:
+        staging_root = (storage_root.parent / ".staging").resolve()
+        try:
+            source_path.resolve().relative_to(staging_root)
+        except ValueError:
+            shutil.copyfile(source_path, destination)
+        else:
+            os.replace(source_path, destination)
+    else:
+        raise FileNotFoundError(f"Không tìm thấy file dữ liệu: {file_name}")
+    try:
+        return str(destination.relative_to(BASE_DIR))
+    except ValueError:
+        return str(destination.resolve())
+
+
+def _infer_base_datetime_from_filename(file_name: str) -> pd.Timestamp | None:
+    """Parse pNEUMA or YYYYMMDD_*_HHMM filename format; fall back to default timestamp if absent."""
+    match = re.search(
+        r"(?P<date>\d{8})(?:_[a-z0-9]+)?_(?P<start>\d{4})",
+        Path(file_name).name,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return pd.Timestamp("2025-01-01 08:00:00")
+    try:
+        date = datetime.strptime(match.group("date"), "%Y%m%d").date()
+        start = datetime.strptime(match.group("start"), "%H%M").time()
+    except ValueError:
+        return pd.Timestamp("2025-01-01 08:00:00")
+    return pd.Timestamp(datetime.combine(date, start))
+
