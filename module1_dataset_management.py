@@ -298,3 +298,67 @@ def _stream_large_csv_from_disk(
     sep = ";" if header_line.count(";") > header_line.count(",") else ","
     return pd.read_csv(file_path, sep=sep, nrows=15000, on_bad_lines="skip", low_memory=False)
 
+
+def _read_dataframe_from_input(
+    file_name: str,
+    file_bytes: bytes | None = None,
+    file_path: Path | None = None,
+    override_size_kb: float | None = None,
+    base_datetime: pd.Timestamp | None = None,
+) -> tuple[pd.DataFrame, str, float]:
+    ext = Path(file_name).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise ValueError(f"Định dạng file '{ext}' không được hỗ trợ! Chỉ chấp nhận file Excel (.xlsx, .xls) hoặc CSV (.csv).")
+
+    if override_size_kb is not None and override_size_kb > MAX_FILE_SIZE_KB:
+        raise ValueError("File vượt quá giới hạn dung lượng tối đa cho phép (Tối đa 3 GB)!")
+
+    if file_bytes is not None:
+        size_kb = override_size_kb if override_size_kb is not None else round(len(file_bytes) / 1024.0, 2)
+        if size_kb > MAX_FILE_SIZE_KB:
+            raise ValueError("File vượt quá giới hạn dung lượng tối đa cho phép (Tối đa 3 GB)!")
+        bio = io.BytesIO(file_bytes)
+        if ext in (".xlsx", ".xls"):
+            df = pd.read_excel(bio)
+        else:
+            text_chunk = file_bytes.decode("utf-8", errors="ignore")
+            lines = [ln for ln in text_chunk.splitlines() if ln.strip()]
+            if not lines:
+                raise ValueError("File CSV rỗng hoặc không có dữ liệu hợp lệ.")
+            header_line = lines[0]
+            second_line = lines[1] if len(lines) > 1 else ""
+            is_pneuma_wide = (
+                ";" in header_line
+                and (
+                    "traveled_d" in header_line.lower()
+                    or "lat_acc" in header_line.lower()
+                    or second_line.count(";") > header_line.count(";") + 5
+                )
+            )
+            if is_pneuma_wide:
+                df = _parse_pneuma_wide_lines(
+                    lines[1:],
+                    file_name=file_name,
+                    max_points=6200,
+                    base_datetime=base_datetime,
+                )
+            else:
+                sep = ";" if header_line.count(";") > header_line.count(",") else ","
+                safe_text = "\n".join(lines[:-1] if len(lines) > 80 else lines)
+                df = pd.read_csv(io.StringIO(safe_text), sep=sep, nrows=15000, on_bad_lines="skip")
+        return df, ext, size_kb
+
+    if file_path is not None and file_path.exists():
+        size_kb = round(file_path.stat().st_size / 1024.0, 2)
+        if size_kb > MAX_FILE_SIZE_KB:
+            raise ValueError("File vượt quá giới hạn dung lượng tối đa cho phép (Tối đa 3 GB)!")
+        if ext in (".xlsx", ".xls"):
+            df = pd.read_excel(file_path)
+        else:
+            df = _stream_large_csv_from_disk(
+                file_path, file_name=file_name, base_datetime=base_datetime
+            )
+        return df, ext, size_kb
+
+    raise FileNotFoundError(f"Không tìm thấy file dữ liệu: {file_name}")
+
