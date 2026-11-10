@@ -362,3 +362,136 @@ def _read_dataframe_from_input(
 
     raise FileNotFoundError(f"Không tìm thấy file dữ liệu: {file_name}")
 
+
+def _normalize_columns(df: pd.DataFrame, base_datetime: pd.Timestamp | None = None) -> pd.DataFrame:
+    """Chuẩn hóa linh hoạt mọi tên cột từ file Excel / CSV bất kỳ và tự động quy đổi tọa độ GPS (lat/lon) sang mét."""
+    cleaned_cols = {c: str(c).replace("\ufeff", "").strip() for c in df.columns}
+    df = df.rename(columns=cleaned_cols).copy()
+
+    col_map = {}
+    speed_is_ms = False
+    time_is_ms = False
+    zone_is_numeric_id = False
+
+    for c in df.columns:
+        cl = str(c).strip().lower()
+        if cl in ("vehicle_id", "track_id", "source_track_id", "id", "ma_xe", "vehicle_code"):
+            if "vehicle_id" not in col_map.values():
+                col_map[c] = "vehicle_id"
+        elif cl in ("vehicle_type", "type", "loai_xe", "loai_phuong_tien"):
+            if "vehicle_type" not in col_map.values():
+                col_map[c] = "vehicle_type"
+        elif cl in (
+            "recorded_time", "timestamp", "time", "datetime", "thoi_gian",
+            "window_start_time", "bin_start", "start_time", "time_label",
+            "window_time_label", "timestamp_ms", "khung_gio",
+        ):
+            if "recorded_time" not in col_map.values():
+                col_map[c] = "recorded_time"
+                if cl == "timestamp_ms":
+                    time_is_ms = True
+        elif cl in ("x_coord_m", "x_pos_m", "x_pos", "x_m", "x", "lon", "longitude", "dist_m"):
+            if "x_coord_m" not in col_map.values():
+                col_map[c] = "x_coord_m"
+        elif cl in ("y_coord_m", "y_pos_m", "y_pos", "y_m", "y", "lat", "latitude", "time_in_zone_s"):
+            if "y_coord_m" not in col_map.values():
+                col_map[c] = "y_coord_m"
+        elif cl in (
+            "speed_kmh", "speed", "avg_speed", "avg_speed_kmh", "mean_inst_speed_kmh",
+            "van_toc", "van_toc_tb_kmh", "velocity", "speed_ms",
+        ):
+            if "speed_kmh" not in col_map.values():
+                col_map[c] = "speed_kmh"
+                if cl == "speed_ms":
+                    speed_is_ms = True
+        elif cl in ("accel_ms2", "acc_ms2", "acceleration", "lon_acc", "acc", "gia_toc"):
+            if "accel_ms2" not in col_map.values():
+                col_map[c] = "accel_ms2"
+        elif cl in ("lane_no", "lane", "lane_id", "lan_duong"):
+            if "lane_no" not in col_map.values():
+                col_map[c] = "lane_no"
+        elif cl in ("zone_name", "zone", "khu_vuc", "ten_khu_vuc", "area", "region", "zone_id", "ma_khu_vuc"):
+            if "zone_name" not in col_map.values():
+                col_map[c] = "zone_name"
+                if cl == "zone_id":
+                    zone_is_numeric_id = True
+        elif cl in ("road_length_km", "length_km", "chieu_dai_km"):
+            if "road_length_km" not in col_map.values():
+                col_map[c] = "road_length_km"
+
+    out = df.rename(columns=col_map).copy()
+    out = out.loc[:, ~out.columns.duplicated()].copy()
+
+    n = len(out)
+
+    required = ("vehicle_id", "recorded_time", "x_coord_m", "y_coord_m", "speed_kmh")
+    missing = [column for column in required if column not in out.columns]
+    if missing:
+        raise ValueError("Thiếu cột dữ liệu bắt buộc: " + ", ".join(missing))
+    if out["vehicle_id"].isna().all():
+        raise ValueError("Cột vehicle_id/track_id không chứa mã phương tiện hợp lệ.")
+    if "vehicle_type" not in out.columns:
+        out["vehicle_type"] = "Unknown"
+
+    numeric_time = pd.to_numeric(out["recorded_time"], errors="coerce")
+    if numeric_time.notna().sum() >= int(0.8 * len(out)):
+        fallback_dt = base_datetime or pd.Timestamp("2025-01-01 08:00:00")
+        if time_is_ms:
+            magnitude = float(numeric_time.abs().median())
+            if magnitude > 1e11:
+                parsed_time = pd.to_datetime(numeric_time, unit="ms", errors="coerce")
+            else:
+                parsed_time = fallback_dt + pd.to_timedelta(numeric_time / 1000.0, unit="s")
+        else:
+            magnitude = float(numeric_time.abs().median())
+            if magnitude > 1e11:
+                parsed_time = pd.to_datetime(numeric_time, unit="ms", errors="coerce")
+            elif magnitude > 1e9:
+                parsed_time = pd.to_datetime(numeric_time, unit="s", errors="coerce")
+            else:
+                parsed_time = fallback_dt + pd.to_timedelta(numeric_time, unit="s")
+        out["recorded_time"] = parsed_time.dt.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        parsed_time = pd.to_datetime(out["recorded_time"], errors="coerce")
+        if parsed_time.notna().sum() < int(0.8 * len(out)):
+            raise ValueError(
+                "Timestamp không hợp lệ; không thể suy đoán thời gian từ dữ liệu thiếu."
+            )
+        out["recorded_time"] = parsed_time.dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    if "x_coord_m" not in out.columns:
+        raise ValueError("Thiếu cột tọa độ X.")
+    if "y_coord_m" not in out.columns:
+        raise ValueError("Thiếu cột tọa độ Y.")
+
+    if "speed_kmh" not in out.columns:
+        raise ValueError("Thiếu cột speed_kmh/speed.")
+    elif speed_is_ms:
+        out["speed_kmh"] = (pd.to_numeric(out["speed_kmh"], errors="coerce") * 3.6).round(2)
+
+    if "accel_ms2" not in out.columns:
+        out["accel_ms2"] = 0.0
+    if "lane_no" not in out.columns:
+        out["lane_no"] = (np.arange(n) % 4) + 1
+
+    if "zone_name" in out.columns and zone_is_numeric_id:
+        out["zone_name"] = out["zone_name"].apply(
+            lambda v: f"Khu Vực Đô Thị {v}" if str(v).strip().isdigit() else str(v).strip()
+        )
+
+    # Tự động phát hiện nếu tọa độ đang ở hệ độ GPS (Latitude/Longitude, VD: 37.98, 23.72) để quy đổi ra mét (m)
+    x_num = pd.to_numeric(out["x_coord_m"], errors="coerce")
+    y_num = pd.to_numeric(out["y_coord_m"], errors="coerce")
+    valid_xy = x_num.notna() & y_num.notna()
+    if valid_xy.any():
+        x_span = float(x_num[valid_xy].max() - x_num[valid_xy].min())
+        y_span = float(y_num[valid_xy].max() - y_num[valid_xy].min())
+        if 0 < x_span < 2.0 and 0 < y_span < 2.0 and float(y_num[valid_xy].abs().max()) <= 90.0:
+            min_lon = float(x_num[valid_xy].min())
+            min_lat = float(y_num[valid_xy].min())
+            mean_lat_rad = math.radians(float(y_num[valid_xy].mean()))
+            out["x_coord_m"] = ((x_num - min_lon) * 111320.0 * max(0.2, math.cos(mean_lat_rad))).round(2)
+            out["y_coord_m"] = ((y_num - min_lat) * 110540.0).round(2)
+
+    return out
+
