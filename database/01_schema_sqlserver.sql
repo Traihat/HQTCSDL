@@ -248,3 +248,101 @@ BEGIN
 END;
 GO
 
+-- Nạp dữ liệu khởi tạo mẫu vào cả 9 bảng để kiểm tra trực tiếp trên SQL Server
+INSERT INTO dbo.DatasetImports (
+    file_name, file_extension, file_size_kb, raw_row_count, cleaned_row_count,
+    removed_missing_dup, removed_stationary, removed_outliers,
+    dynamic_zone_count, dynamic_timeframe_count, time_range_start, time_range_end, status_message
+) VALUES (
+    N'UAV_Urban_Traffic_Dataset.csv', '.csv', 245.8, 4210, 4065,
+    45, 62, 38, 4, 4, '2026-11-06 07:00:00', '2026-11-06 09:00:00',
+    N'Đã xử lý dữ liệu và đưa dữ liệu vào database thành công!'
+);
+
+DECLARE @imp_id INT = SCOPE_IDENTITY();
+
+INSERT INTO dbo.DynamicZones (import_id, zone_code, zone_name, partition_method, x_min_m, x_max_m, y_min_m, y_max_m, road_length_km)
+VALUES
+    (@imp_id, 'DYN_ZONE_1', N'Nút Giao Trung Tâm (Central Hub)', N'Extracted_From_File_Columns', 220, 480, 300, 620, 1.35),
+    (@imp_id, 'DYN_ZONE_2', N'Đại Lộ Hướng Bắc (North Corridor)', N'Extracted_From_File_Columns', 500, 880, 640, 980, 1.65),
+    (@imp_id, 'DYN_ZONE_3', N'Trục Thương Mại Đông (East Avenue)', N'Extracted_From_File_Columns', 900, 1280, 320, 720, 1.45),
+    (@imp_id, 'DYN_ZONE_4', N'Cầu Vượt Cửa Ngõ Nam (South Overpass)', N'Extracted_From_File_Columns', 260, 760, 80, 290, 1.80);
+
+INSERT INTO dbo.DynamicTimeFrames (import_id, timeframe_code, timeframe_label, start_time_str, end_time_str, start_epoch_sec, end_epoch_sec, duration_minutes, is_peak_timeframe)
+VALUES
+    (@imp_id, 'TF_1', N'07:00 - 07:30', '2026-11-06 07:00:00', '2026-11-06 07:30:00', 0, 1800, 30, 0),
+    (@imp_id, 'TF_2', N'07:30 - 08:00 (Cao điểm)', '2026-11-06 07:30:00', '2026-11-06 08:00:00', 1800, 3600, 30, 1),
+    (@imp_id, 'TF_3', N'08:00 - 08:30 (Cao điểm)', '2026-11-06 08:00:00', '2026-11-06 08:30:00', 3600, 5400, 30, 1),
+    (@imp_id, 'TF_4', N'08:30 - 09:00', '2026-11-06 08:30:00', '2026-11-06 09:00:00', 5400, 7200, 30, 0);
+
+DECLARE @z1 INT = (SELECT TOP 1 zone_id FROM dbo.DynamicZones WHERE import_id = @imp_id ORDER BY zone_id);
+DECLARE @tf1 INT = (SELECT TOP 1 timeframe_id FROM dbo.DynamicTimeFrames WHERE import_id = @imp_id ORDER BY timeframe_id);
+
+INSERT INTO dbo.CleanedTrajectories (import_id, zone_id, timeframe_id, vehicle_id, vehicle_type, recorded_time_str, time_sec, x_coord_m, y_coord_m, speed_kmh, accel_ms2, lane_no)
+VALUES
+    (@imp_id, @z1, @tf1, 'UAV_1001', N'Car', '2026-11-06 07:05:00', 300, 310.5, 420.2, 26.4, 0.25, 1),
+    (@imp_id, @z1, @tf1, 'UAV_1002', N'Motorbike', '2026-11-06 07:10:00', 600, 345.0, 460.8, 22.1, -0.15, 2);
+
+INSERT INTO dbo.TrafficPatternMetrics (
+    import_id, zone_id, timeframe_id, window_index, window_time_label, window_duration_sec,
+    vehicle_count, car_count, motorbike_count, bus_truck_count,
+    avg_speed_kmh, traffic_density_veh_km, traffic_flow_veh_h, slow_vehicle_ratio_pct,
+    is_peak_hour, is_hotspot, hotspot_location, hotspot_score, congestion_level
+) VALUES
+    (@imp_id, @z1, @tf1, 1, '07:00', 300, 42, 20, 16, 6, 24.5, 31.1, 761.9, 18.5, 1, 1, N'Nút Giao Trung Tâm - Làn 1', 1.24, 'Moderate');
+
+INSERT INTO dbo.ForecastComparisons (
+    import_id, zone_id, arima_order_str, arima_mae, arima_rmse, arima_mape_pct, arima_r2,
+    prophet_seasonality_str, prophet_mae, prophet_rmse, prophet_mape_pct, prophet_r2,
+    better_model, rmse_improvement_pct, commentary_text
+) VALUES (
+    @imp_id, @z1, 'ARIMA(1,1,1)', 1.65, 2.04, 5.8, 0.88,
+    'Prophet(Fourier K=3, P=9.5)', 1.32, 1.68, 4.7, 0.92,
+    'Prophet', 17.65, N'Nhận xét: Mô hình Prophet đạt độ chính xác cao hơn ARIMA nhờ hàm chu kỳ điều hòa Fourier.'
+);
+
+DECLARE @comp_id INT = SCOPE_IDENTITY();
+
+INSERT INTO dbo.ForecastPoints (
+    comparison_id, timeframe_id, day_offset, forecast_date_label, step_index, time_label,
+    phase_type, actual_density, arima_predicted, arima_lower_95, arima_upper_95,
+    prophet_predicted, prophet_lower_95, prophet_upper_95
+) VALUES
+    (@comp_id, @tf1, 0, N'Ngày Hiện Tại (Day 0)', 1, '07:00', 'Train', 31.1, 30.8, 28.5, 33.1, 31.0, 29.0, 33.0),
+    (@comp_id, @tf1, 1, N'Dự báo Ngày +1 (+24h)', 2, 'Ngày +1 07:00', 'Future_Day1', 32.5, 32.1, 29.1, 35.1, 32.4, 29.8, 35.0),
+    (@comp_id, @tf1, 2, N'Dự báo Ngày +2 (+48h)', 3, 'Ngày +2 07:00', 'Future_Day2', 33.6, 33.0, 29.5, 36.5, 33.5, 30.5, 36.5);
+
+INSERT INTO dbo.ExperimentRuns (
+    import_id, zone_id, experiment_code, experiment_name, temporal_interval_sec, train_ratio,
+    arima_order_str, prophet_fourier_k, prophet_changepoint_scale, random_seed, dataset_version,
+    software_version, arima_mae, arima_rmse, arima_mape_pct, arima_r2,
+    prophet_mae, prophet_rmse, prophet_mape_pct, prophet_r2,
+    winner_model, execution_time_ms, reproducibility_hash, notes
+) VALUES (
+    @imp_id, @z1, 'EXP-01-Z1', N'Baseline 60s — ARIMA(1,1,0) vs Prophet(K=2)', 60, 0.75,
+    'ARIMA(1,1,0)', 2, 0.15, 42, 'v1.0-UAV', 'UTA-Platform v2.0',
+    1.65, 2.04, 5.8, 0.88, 1.32, 1.68, 4.7, 0.92,
+    'Prophet', 24.5, 'SHA256-8F4A2C91E0B3', N'Cấu hình cơ sở 60 giây'
+);
+
+INSERT INTO dbo.GeneratedReports (
+    import_id, report_code, report_title, report_type, export_format,
+    zone_scope, horizon_scope, summary_highlights
+) VALUES (
+    @imp_id, 'RPT-01-FULL', N'Báo Cáo Tổng Hợp Toàn Hệ Thống 6 Module', 'Comprehensive_Full', 'PDF',
+    N'Tất cả 4 Khu vực động', N'Ngày gốc (Day 0) + Dự báo 2 Ngày sau đó (+48h)',
+    N'Tổng hợp phân tích mẫu hình giao thông, dự báo đa ngày và thực nghiệm tái lập.'
+);
+GO
+
+-- Hiển thị bảng kiểm tra 9 bảng sau khi khởi tạo
+SELECT 1 AS STT, 'DatasetImports' AS TableName, COUNT(*) AS TotalRows FROM dbo.DatasetImports
+UNION ALL SELECT 2, 'DynamicZones', COUNT(*) FROM dbo.DynamicZones
+UNION ALL SELECT 3, 'DynamicTimeFrames', COUNT(*) FROM dbo.DynamicTimeFrames
+UNION ALL SELECT 4, 'CleanedTrajectories', COUNT(*) FROM dbo.CleanedTrajectories
+UNION ALL SELECT 5, 'TrafficPatternMetrics', COUNT(*) FROM dbo.TrafficPatternMetrics
+UNION ALL SELECT 6, 'ForecastComparisons', COUNT(*) FROM dbo.ForecastComparisons
+UNION ALL SELECT 7, 'ForecastPoints', COUNT(*) FROM dbo.ForecastPoints
+UNION ALL SELECT 8, 'ExperimentRuns', COUNT(*) FROM dbo.ExperimentRuns
+UNION ALL SELECT 9, 'GeneratedReports', COUNT(*) FROM dbo.GeneratedReports;
+GO
