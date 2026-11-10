@@ -373,3 +373,138 @@ def init_db(db_path: Path = DB_PATH) -> None:
     conn.commit()
     conn.close()
 
+
+def find_dataset_by_checksum(checksum: str, db_path: Path = DB_PATH) -> dict | None:
+    """Find an existing dataset with identical original file content."""
+    init_db(db_path)
+    conn = get_connection(db_path)
+    row = conn.execute(
+        """
+        SELECT import_id, dataset_uuid, file_name, file_size_kb, imported_at
+        FROM DatasetImports
+        WHERE checksum_sha256 = ?
+        ORDER BY import_id
+        LIMIT 1
+        """,
+        (checksum,),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return {
+        "dataset_id": row[0],
+        "dataset_uuid": row[1],
+        "file_name": row[2],
+        "file_size_kb": row[3],
+        "uploaded_at": row[4],
+    }
+
+
+def list_datasets(
+    db_path: Path = DB_PATH,
+    page: int = 1,
+    page_size: int = 25,
+    filename: str = "",
+    capture_date: str = "",
+    drone_id: str = "",
+    start_time: str = "",
+    end_time: str = "",
+    processing_status: str = "",
+    file_extension: str = "",
+) -> dict:
+    """Return a paginated, filterable dataset library without exposing storage paths."""
+    init_db(db_path)
+    page = max(1, int(page))
+    page_size = min(100, max(1, int(page_size)))
+    filters = ["is_deleted = 0"]
+    params: list[object] = []
+    if filename.strip():
+        filters.append("file_name LIKE ?")
+        params.append(f"%{filename.strip()}%")
+    if capture_date.strip():
+        filters.append("capture_date = ?")
+        params.append(capture_date.strip())
+    if drone_id.strip():
+        filters.append("drone_id = ?")
+        params.append(drone_id.strip())
+    if start_time.strip():
+        filters.append("start_time >= ?")
+        params.append(start_time.strip())
+    if end_time.strip():
+        filters.append("end_time <= ?")
+        params.append(end_time.strip())
+    if processing_status.strip():
+        filters.append("processing_status = ?")
+        params.append(processing_status.strip())
+    if file_extension.strip():
+        filters.append("file_extension = ?")
+        params.append(file_extension.strip().lower())
+    where_sql = " AND ".join(filters)
+
+    conn = get_connection(db_path)
+    total = int(
+        conn.execute(
+            f"SELECT COUNT(*) FROM DatasetImports WHERE {where_sql}", params
+        ).fetchone()[0]
+    )
+    rows = conn.execute(
+        f"""
+        SELECT import_id, dataset_uuid, file_name, file_extension, file_size_kb, raw_row_count,
+               cleaned_row_count, time_range_start, time_range_end, imported_at,
+               checksum_sha256, capture_date, drone_id, start_time, end_time,
+               duration_minutes, processing_status, validation_status, status_message
+        FROM DatasetImports
+        WHERE {where_sql}
+        ORDER BY imported_at DESC, import_id DESC
+        LIMIT ? OFFSET ?
+        """,
+        [*params, page_size, (page - 1) * page_size],
+    ).fetchall()
+    conn.close()
+    columns = (
+        "dataset_id", "dataset_uuid", "filename", "file_extension", "file_size_kb", "raw_record_count",
+        "record_count", "time_range_start", "time_range_end", "uploaded_at",
+        "checksum_sha256", "capture_date", "drone_id", "start_time", "end_time",
+        "duration_minutes", "processing_status", "validation_status", "status_message",
+    )
+    return {
+        "datasets": [dict(zip(columns, row)) for row in rows],
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+    }
+
+
+def get_dataset_filter_options(db_path: Path = DB_PATH) -> dict:
+    """Return lightweight metadata for selecting a saved dataset in analysis modules."""
+    init_db(db_path)
+    conn = get_connection(db_path)
+    rows = conn.execute(
+        """
+        SELECT import_id, file_name, file_extension, capture_date, drone_id,
+               start_time, end_time
+        FROM DatasetImports
+        WHERE is_deleted = 0 AND processing_status = 'saved'
+        ORDER BY imported_at DESC, import_id DESC
+        """
+    ).fetchall()
+    conn.close()
+    datasets = [
+        {
+            "dataset_id": row[0],
+            "filename": row[1],
+            "file_extension": row[2],
+            "capture_date": row[3],
+            "drone_id": row[4],
+            "start_time": row[5],
+            "end_time": row[6],
+        }
+        for row in rows
+    ]
+    return {
+        "datasets": datasets,
+        "file_extensions": sorted({row["file_extension"] for row in datasets if row["file_extension"]}),
+        "capture_dates": sorted({row["capture_date"] for row in datasets if row["capture_date"]}),
+        "drone_ids": sorted({row["drone_id"] for row in datasets if row["drone_id"]}),
+    }
+
