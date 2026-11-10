@@ -645,3 +645,225 @@ def _derive_dynamic_timeframes(df_clean: pd.DataFrame) -> tuple[pd.DataFrame, li
 
     return df, timeframes_meta
 
+
+def process_and_ingest_uploaded_file(
+    file_name: str,
+    file_bytes: bytes | None = None,
+    file_path: Path | None = None,
+    db_path: Path = DB_PATH,
+    override_size_kb: float | None = None,
+    dataset_uuid: str | None = None,
+    checksum_sha256: str | None = None,
+    allow_duplicate: bool = False,
+    storage_root: Path = DEFAULT_STORAGE_ROOT,
+    manual_metadata: dict | None = None,
+) -> dict:
+    """
+    Hàm cốt lõi của Module 1:
+      1. Đọc file Excel (.xlsx, .xls) hoặc CSV (.csv) được kéo thả vào (hỗ trợ Streaming cho file lớn tới 3 GB).
+      2. Tiền xử lý 4 bước: lọc thiếu/trùng, lọc xe đỗ tĩnh, lọc ngoại lai vận tốc/gia tốc, chuẩn hóa tọa độ.
+      3. Tự động chia Khu vực động (`DynamicZones`) và Khung giờ động (`DynamicTimeFrames`) theo dữ liệu thực tế.
+      4. Tính toán chỉ số giao thông (`TrafficPatternMetrics`), dự báo ARIMA & Prophet (`ForecastComparisons`, `ForecastPoints`),
+         khởi tạo thực nghiệm (`ExperimentRuns`) và báo cáo (`GeneratedReports`).
+      5. Nạp toàn bộ vào 9 bảng CSDL và trả về dòng thông báo thành công.
+    """
+    init_db(db_path)
+    if checksum_sha256 is None:
+        if file_bytes is not None:
+            checksum_sha256 = hashlib.sha256(file_bytes).hexdigest()
+        elif file_path is not None and file_path.exists():
+            checksum_sha256 = _sha256_file(file_path)
+        else:
+            raise FileNotFoundError(f"Không tìm thấy file dữ liệu: {file_name}")
+    duplicate = find_dataset_by_checksum(checksum_sha256, db_path)
+    if duplicate and not allow_duplicate:
+        raise DuplicateDatasetError(duplicate)
+    dataset_uuid = dataset_uuid or str(uuid.uuid4())
+    dataset_metadata = _parse_dataset_metadata(file_name, manual_metadata)
+    base_datetime = None
+    if dataset_metadata["capture_date"] and dataset_metadata["start_time"]:
+        base_datetime = pd.Timestamp(
+            f"{dataset_metadata['capture_date']} {dataset_metadata['start_time']}:00"
+        )
+    raw_df, ext, size_kb = _read_dataframe_from_input(
+        file_name=file_name,
+        file_bytes=file_bytes,
+        file_path=file_path,
+        override_size_kb=override_size_kb,
+        base_datetime=base_datetime,
+    )
+    df = _normalize_columns(raw_df, base_datetime=base_datetime)
+    n_raw = len(df)
+
+    # Bước 1: Lọc dòng thiếu giá trị (NaN) và bản ghi trùng lặp
+    for num_col in ("x_coord_m", "y_coord_m", "speed_kmh", "accel_ms2"):
+        df[num_col] = pd.to_numeric(df[num_col], errors="coerce")
+    df_step1 = df.dropna(subset=["vehicle_id", "recorded_time", "x_coord_m", "y_coord_m", "speed_kmh"]).copy()
+    df_step1 = df_step1.drop_duplicates(subset=["vehicle_id", "recorded_time", "x_coord_m", "y_coord_m"])
+    if df_step1.empty:
+        raise ValueError("Không còn bản ghi hợp lệ sau khi kiểm tra timestamp, tọa độ và vận tốc.")
+    removed_missing_dup = max(0, n_raw - len(df_step1))
+
+    # Bước 2: Lọc bỏ phương tiện đỗ tĩnh (speed_kmh <= 0.5 km/h)
+    df_step2 = df_step1[df_step1["speed_kmh"] > 0.5].copy()
+    if df_step2.empty:
+        raise ValueError("Dataset chỉ chứa phương tiện đứng yên; không có dữ liệu giao thông để phân tích.")
+    removed_stationary = max(0, len(df_step1) - len(df_step2))
+
+    # Bước 3: Lọc bỏ ngoại lai vận tốc (> 120 km/h) và gia tốc (|accel| > 15 m/s²)
+    df_step2["accel_ms2"] = df_step2["accel_ms2"].fillna(0.0)
+    df_clean = df_step2[
+        (df_step2["speed_kmh"] <= 120.0)
+        & (df_step2["accel_ms2"] >= -15.0)
+        & (df_step2["accel_ms2"] <= 15.0)
+    ].copy()
+    if df_clean.empty:
+        raise ValueError("Không còn bản ghi hợp lệ sau khi loại ngoại lai vận tốc/gia tốc.")
+    removed_outliers = max(0, len(df_step2) - len(df_clean))
+
+    # Bước 4: Tự động chia Khu vực ĐỘNG & Khung giờ ĐỘNG từ dữ liệu sạch
+    df_clean, zones_meta = _derive_dynamic_zones(df_clean)
+    df_clean, timeframes_meta = _derive_dynamic_timeframes(df_clean)
+
+    stored_path = _store_original_file(
+        file_name=file_name,
+        file_bytes=file_bytes,
+        source_path=file_path,
+        dataset_uuid=dataset_uuid,
+        storage_root=storage_root,
+    )
+
+    conn = get_connection(db_path)
+    cur = conn.cursor()
+
+    t_start_str = df_clean["_dt"].min().strftime("%Y-%m-%d %H:%M:%S")
+    t_end_str = df_clean["_dt"].max().strftime("%Y-%m-%d %H:%M:%S")
+
+    cur.execute(
+        """
+        INSERT INTO DatasetImports (
+            file_name, file_extension, file_size_kb, raw_row_count, cleaned_row_count,
+            removed_missing_dup, removed_stationary, removed_outliers, dynamic_zone_count,
+            dynamic_timeframe_count, time_range_start, time_range_end, status_message,
+            dataset_uuid, storage_path, checksum_sha256, capture_date, drone_id, start_time,
+            end_time, duration_minutes, processing_status, validation_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            file_name,
+            ext,
+            size_kb,
+            n_raw,
+            len(df_clean),
+            removed_missing_dup,
+            removed_stationary,
+            removed_outliers,
+            len(zones_meta),
+            len(timeframes_meta),
+            t_start_str,
+            t_end_str,
+            PROCESS_SUCCESS_TEXT,
+            dataset_uuid,
+            stored_path,
+            checksum_sha256,
+            dataset_metadata["capture_date"],
+            dataset_metadata["drone_id"],
+            dataset_metadata["start_time"],
+            dataset_metadata["end_time"],
+            dataset_metadata["duration_minutes"],
+            "saved",
+            (
+                "valid"
+                if all(
+                    dataset_metadata[key]
+                    for key in ("capture_date", "drone_id", "start_time", "end_time")
+                )
+                else "metadata_missing"
+            ),
+        ),
+    )
+    import_id = int(cur.lastrowid)
+
+    # Nạp bảng DynamicZones
+    zone_name_to_id = {}
+    zone_id_to_meta = {}
+    for z in zones_meta:
+        cur.execute(
+            """
+            INSERT INTO DynamicZones (
+                import_id, zone_code, zone_name, partition_method,
+                x_min_m, x_max_m, y_min_m, y_max_m, road_length_km
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                import_id,
+                z["zone_code"],
+                z["zone_name"],
+                z["partition_method"],
+                z["x_min_m"],
+                z["x_max_m"],
+                z["y_min_m"],
+                z["y_max_m"],
+                z["road_length_km"],
+            ),
+        )
+        zid = int(cur.lastrowid)
+        zone_name_to_id[z["zone_name"]] = zid
+        zone_id_to_meta[zid] = z
+
+    # Nạp bảng DynamicTimeFrames
+    slot_to_tf_id = {}
+    for tf in timeframes_meta:
+        cur.execute(
+            """
+            INSERT INTO DynamicTimeFrames (
+                import_id, timeframe_code, timeframe_label, start_time_str, end_time_str,
+                start_epoch_sec, end_epoch_sec, duration_minutes, is_peak_timeframe
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                import_id,
+                tf["timeframe_code"],
+                tf["timeframe_label"],
+                tf["start_time_str"],
+                tf["end_time_str"],
+                tf["start_epoch_sec"],
+                tf["end_epoch_sec"],
+                tf["duration_minutes"],
+                tf["is_peak_timeframe"],
+            ),
+        )
+        slot_to_tf_id[tf["slot_idx"]] = int(cur.lastrowid)
+
+    df_clean["zone_id"] = df_clean["zone_name"].map(zone_name_to_id)
+    df_clean["timeframe_id"] = df_clean["_slot_idx"].map(slot_to_tf_id)
+    df_clean["lane_no"] = pd.to_numeric(df_clean["lane_no"], errors="coerce").fillna(1).astype(int)
+
+    # Nạp bảng CleanedTrajectories
+    traj_records = [
+        (
+            import_id,
+            int(row.zone_id),
+            int(row.timeframe_id),
+            str(row.vehicle_id),
+            str(row.vehicle_type),
+            str(row.recorded_time_str),
+            round(float(row.time_sec), 2),
+            round(float(row.x_coord_m), 2),
+            round(float(row.y_coord_m), 2),
+            round(float(row.speed_kmh), 2),
+            round(float(row.accel_ms2), 2),
+            int(row.lane_no),
+        )
+        for row in df_clean.itertuples(index=False)
+    ]
+    cur.executemany(
+        """
+        INSERT INTO CleanedTrajectories (
+            import_id, zone_id, timeframe_id, vehicle_id, vehicle_type,
+            recorded_time_str, time_sec, x_coord_m, y_coord_m, speed_kmh, accel_ms2, lane_no
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        traj_records,
+    )
+
