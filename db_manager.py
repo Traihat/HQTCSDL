@@ -508,3 +508,219 @@ def get_dataset_filter_options(db_path: Path = DB_PATH) -> dict:
         "drone_ids": sorted({row["drone_id"] for row in datasets if row["drone_id"]}),
     }
 
+
+def delete_dataset_permanently(
+    dataset_id: int,
+    db_path: Path = DB_PATH,
+    storage_root: Path | None = None,
+) -> dict | None:
+    """Permanently remove a dataset, its original file, and history that used it."""
+    if dataset_id <= 0:
+        raise ValueError("Dataset ID không hợp lệ.")
+
+    init_db(db_path)
+    safe_storage_root = (storage_root or BASE_DIR / "storage" / "datasets").resolve()
+    conn = get_connection(db_path)
+    source_path: Path | None = None
+    staged_path: Path | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        dataset = conn.execute(
+            "SELECT storage_path FROM DatasetImports WHERE import_id = ?",
+            (dataset_id,),
+        ).fetchone()
+        if dataset is None:
+            conn.rollback()
+            return None
+
+        if dataset[0]:
+            stored_path = Path(dataset[0])
+            source_path = stored_path if stored_path.is_absolute() else BASE_DIR / stored_path
+            if source_path.is_symlink():
+                raise ValueError("Không thể xóa file Dataset được liên kết qua symbolic link.")
+            source_path = source_path.resolve()
+            try:
+                source_path.relative_to(safe_storage_root)
+            except ValueError as exc:
+                raise ValueError("Đường dẫn file Dataset nằm ngoài thư mục lưu trữ an toàn.") from exc
+            if source_path.exists() and not source_path.is_file():
+                raise ValueError("Đường dẫn file Dataset không trỏ đến một file hợp lệ.")
+
+        analysis_ids = [
+            row[0]
+            for row in conn.execute(
+                "SELECT analysis_run_id FROM AnalysisRunDatasets WHERE import_id = ?",
+                (dataset_id,),
+            ).fetchall()
+        ]
+        forecast_ids = [
+            row[0]
+            for row in conn.execute(
+                """
+                SELECT DISTINCT forecast_run_id
+                FROM ForecastRuns
+                WHERE forecast_run_id IN (
+                    SELECT forecast_run_id FROM ForecastRunDatasets WHERE import_id = ?
+                )
+                   OR analysis_run_id IN (
+                       SELECT analysis_run_id FROM AnalysisRunDatasets WHERE import_id = ?
+                   )
+                """,
+                (dataset_id, dataset_id),
+            ).fetchall()
+        ]
+        if forecast_ids:
+            placeholders = ",".join("?" for _ in forecast_ids)
+            conn.execute(
+                f"DELETE FROM ForecastRunDatasets WHERE forecast_run_id IN ({placeholders})",
+                forecast_ids,
+            )
+            conn.execute(
+                f"DELETE FROM ForecastRuns WHERE forecast_run_id IN ({placeholders})",
+                forecast_ids,
+            )
+        if analysis_ids:
+            placeholders = ",".join("?" for _ in analysis_ids)
+            conn.execute(
+                f"DELETE FROM AnalysisRunDatasets WHERE analysis_run_id IN ({placeholders})",
+                analysis_ids,
+            )
+            conn.execute(
+                f"DELETE FROM AnalysisRuns WHERE analysis_run_id IN ({placeholders})",
+                analysis_ids,
+            )
+
+        if source_path is not None and source_path.is_file():
+            staged_path = source_path.with_name(
+                f".{source_path.name}.{uuid.uuid4().hex}.deleting"
+            )
+            source_path.replace(staged_path)
+
+        conn.execute(
+            "DELETE FROM ForecastPoints WHERE comparison_id IN "
+            "(SELECT comparison_id FROM ForecastComparisons WHERE import_id = ?)",
+            (dataset_id,),
+        )
+        for child_table in (
+            "ForecastComparisons",
+            "ExperimentRuns",
+            "GeneratedReports",
+            "TrafficPatternMetrics",
+            "CleanedTrajectories",
+            "DynamicTimeFrames",
+            "DynamicZones",
+        ):
+            conn.execute(f"DELETE FROM {child_table} WHERE import_id = ?", (dataset_id,))
+
+        conn.execute("DELETE FROM DatasetImports WHERE import_id = ? OR is_deleted = 1", (dataset_id,))
+
+        remaining_active = int(
+            conn.execute("SELECT COUNT(*) FROM DatasetImports WHERE is_deleted = 0").fetchone()[0]
+        )
+        if remaining_active == 0:
+            conn.execute("PRAGMA foreign_keys = OFF")
+            for tbl, _ in reversed(ALL_9_TABLES):
+                conn.execute(f"DELETE FROM {tbl}")
+            conn.execute("DELETE FROM sqlite_sequence")
+            conn.execute("PRAGMA foreign_keys = ON")
+
+        conn.commit()
+    except BaseException:
+        if conn.in_transaction:
+            conn.rollback()
+        if staged_path is not None and staged_path.exists() and source_path is not None:
+            staged_path.replace(source_path)
+        raise
+    finally:
+        conn.close()
+
+    if staged_path is not None:
+        staged_path.unlink(missing_ok=True)
+        if (
+            source_path is not None
+            and source_path.parent.exists()
+            and source_path.parent != safe_storage_root
+        ):
+            try:
+                source_path.parent.rmdir()
+            except OSError:
+                pass
+    return {"status": "SUCCESS", "dataset_id": dataset_id}
+
+
+def clear_all_database_data(
+    db_path: Path = DB_PATH,
+    storage_root: Path | None = None,
+) -> dict:
+    """
+    Xóa sạch toàn bộ dữ liệu cũ trong cả 14 bảng của Database, xóa file lưu trữ và reset bộ đếm tự tăng.
+    """
+    init_db(db_path)
+    safe_storage_root = (storage_root or BASE_DIR / "storage" / "datasets").resolve()
+    conn = get_connection(db_path)
+    cur = conn.cursor()
+    cur.execute("PRAGMA foreign_keys = OFF")
+    delete_order = [
+        "ForecastResults",
+        "ForecastRunDatasets",
+        "ForecastRuns",
+        "AnalysisRunDatasets",
+        "AnalysisRuns",
+        "GeneratedReports",
+        "ExperimentRuns",
+        "ForecastPoints",
+        "ForecastComparisons",
+        "TrafficPatternMetrics",
+        "CleanedTrajectories",
+        "DynamicTimeFrames",
+        "DynamicZones",
+        "DatasetImports",
+    ]
+    for tbl in delete_order:
+        cur.execute(f"DELETE FROM {tbl}")
+    cur.execute("DELETE FROM sqlite_sequence")
+    cur.execute("PRAGMA foreign_keys = ON")
+    conn.commit()
+    conn.close()
+
+    if safe_storage_root.exists() and safe_storage_root.is_dir():
+        import shutil
+        for child in safe_storage_root.iterdir():
+            try:
+                if child.is_dir() and not child.is_symlink():
+                    shutil.rmtree(child, ignore_errors=True)
+                elif child.is_file():
+                    child.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    return {
+        "status": "SUCCESS",
+        "message": "Da xoa thanh cong database va du lieu cu. San sang de nhan du lieu moi",
+        "message_vn": "Đã xóa thành công database và dữ liệu cũ. Sẵn sàng để nhận dữ liệu mới",
+    }
+
+
+def get_table_counts_df(db_path: Path = DB_PATH) -> pd.DataFrame:
+    """Thống kê số dòng hiện có trong 9 bảng của UrbanTrafficDynamicDB."""
+    init_db(db_path)
+    conn = get_connection(db_path)
+    rows = []
+    for idx, (tbl, desc) in enumerate(ALL_9_TABLES, start=1):
+        cnt = int(conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0])
+        rows.append({
+            "STT": idx,
+            "TableName": tbl,
+            "TotalRows": cnt,
+            "Chuc_Nang": desc,
+        })
+    conn.close()
+    return pd.DataFrame(rows)
+
+
+if __name__ == "__main__":
+    init_db(DB_PATH)
+    print("=" * 90)
+    print(f"✅ ĐÃ KHỞI TẠO & KIỂM TRA CƠ SỞ DỮ LIỆU 9 BẢNG TẠI: {DB_PATH}")
+    print("=" * 90)
+    print(get_table_counts_df(DB_PATH).to_string(index=False))
