@@ -495,3 +495,153 @@ def _normalize_columns(df: pd.DataFrame, base_datetime: pd.Timestamp | None = No
 
     return out
 
+
+def _derive_dynamic_zones(df_clean: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
+    """
+    Tự động chia Khu vực (DynamicZones) dựa trực tiếp trên dữ liệu được nạp vào:
+      - Trường hợp 1: Nếu file dữ liệu có cột `zone_name` -> trích xuất tự động các khu vực thực tế trong file.
+      - Trường hợp 2: Nếu file dữ liệu KHÔNG có cột `zone_name` (như file tọa độ hoặc file pNEUMA 1.72 GB) ->
+        tự động phân hoạch không gian tọa độ (x_coord_m, y_coord_m) thành 5 phân khu đô thị động.
+    """
+    df = df_clean.copy()
+    zones_meta = []
+
+    if "zone_name" in df.columns and df["zone_name"].dropna().nunique() >= 2:
+        df["zone_name"] = df["zone_name"].astype(str).str.strip()
+        unique_zones = list(df["zone_name"].unique())[:8]
+        df = df[df["zone_name"].isin(unique_zones)].copy()
+        partition_method = "Extracted_From_File_Columns"
+
+        for idx, z_name in enumerate(unique_zones, start=1):
+            sub = df[df["zone_name"] == z_name]
+            x_min, x_max = float(sub["x_coord_m"].min()), float(sub["x_coord_m"].max())
+            y_min, y_max = float(sub["y_coord_m"].min()), float(sub["y_coord_m"].max())
+            if "road_length_km" in sub.columns and sub["road_length_km"].notna().any():
+                road_len = round(max(0.4, float(sub["road_length_km"].dropna().iloc[0])), 2)
+            else:
+                diag_m = math.hypot(max(100.0, x_max - x_min), max(100.0, y_max - y_min))
+                road_len = round(max(0.6, diag_m / 650.0), 2)
+
+            zones_meta.append({
+                "zone_code": f"DYN_ZONE_{idx}",
+                "zone_name": z_name,
+                "partition_method": partition_method,
+                "x_min_m": round(x_min, 2),
+                "x_max_m": round(x_max, 2),
+                "y_min_m": round(y_min, 2),
+                "y_max_m": round(y_max, 2),
+                "road_length_km": road_len,
+            })
+    else:
+        partition_method = "Coordinate_Spatial_Clustering"
+        x = df["x_coord_m"].to_numpy(dtype=float)
+        y = df["y_coord_m"].to_numpy(dtype=float)
+        qx30, qx70 = float(np.percentile(x, 30)), float(np.percentile(x, 70))
+        qy30, qy70 = float(np.percentile(y, 30)), float(np.percentile(y, 70))
+        x_mid, y_mid = float(np.median(x)), float(np.median(y))
+
+        in_center = (x >= qx30) & (x <= qx70) & (y >= qy30) & (y <= qy70)
+        assigned = np.full(len(df), "Phân Khu Đông Nam (SE)", dtype=object)
+        assigned[(~in_center) & (x < x_mid) & (y >= y_mid)] = "Phân Khu Tây Bắc (NW)"
+        assigned[(~in_center) & (x >= x_mid) & (y >= y_mid)] = "Phân Khu Đông Bắc (NE)"
+        assigned[(~in_center) & (x < x_mid) & (y < y_mid)] = "Phân Khu Tây Nam (SW)"
+        assigned[in_center] = "Khu Trung Tâm Tọa Độ (Center)"
+        df["zone_name"] = assigned
+
+        for idx, z_name in enumerate(
+            [
+                "Khu Trung Tâm Tọa Độ (Center)",
+                "Phân Khu Tây Bắc (NW)",
+                "Phân Khu Đông Bắc (NE)",
+                "Phân Khu Tây Nam (SW)",
+                "Phân Khu Đông Nam (SE)",
+            ],
+            start=1,
+        ):
+            sub = df[df["zone_name"] == z_name]
+            if sub.empty:
+                continue
+            x_min, x_max = float(sub["x_coord_m"].min()), float(sub["x_coord_m"].max())
+            y_min, y_max = float(sub["y_coord_m"].min()), float(sub["y_coord_m"].max())
+            diag_m = math.hypot(max(100.0, x_max - x_min), max(100.0, y_max - y_min))
+            road_len = round(max(0.75, diag_m / 600.0), 2)
+            zones_meta.append({
+                "zone_code": f"AUTO_ZONE_{idx}",
+                "zone_name": z_name,
+                "partition_method": partition_method,
+                "x_min_m": round(x_min, 2),
+                "x_max_m": round(x_max, 2),
+                "y_min_m": round(y_min, 2),
+                "y_max_m": round(y_max, 2),
+                "road_length_km": road_len,
+            })
+
+    return df, zones_meta
+
+
+def _derive_dynamic_timeframes(df_clean: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
+    """
+    Tự động chia Khung giờ (DynamicTimeFrames) thích ứng thông minh với độ dài thời gian thực tế
+    của file dữ liệu được nạp vào (từ phiên bay UAV 12 phút đến dữ liệu nhiều giờ).
+    """
+    df = df_clean.copy()
+    parsed_dt = pd.to_datetime(df["recorded_time"], errors="coerce")
+
+    if parsed_dt.notna().sum() < int(0.8 * len(df)):
+        raise ValueError("Không đủ timestamp hợp lệ để xác định khung thời gian Dataset.")
+    df["_dt"] = parsed_dt
+    min_dt = df["_dt"].min()
+    df["time_sec"] = (df["_dt"] - min_dt).dt.total_seconds().astype(float)
+    df["recorded_time_str"] = df["_dt"].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    total_span_sec = max(float(df["time_sec"].max() - df["time_sec"].min()), 60.0)
+    if total_span_sec <= 1200:
+        n_slots = 4
+        slot_sec = total_span_sec / 4.0
+    elif total_span_sec <= 2400:
+        slot_sec = 450.0
+        n_slots = max(2, int(math.ceil((total_span_sec + 1e-6) / slot_sec)))
+    elif total_span_sec <= 3600:
+        slot_sec = 900.0
+        n_slots = max(2, int(math.ceil((total_span_sec + 1e-6) / slot_sec)))
+    elif total_span_sec <= 10800:
+        slot_sec = 1800.0
+        n_slots = max(2, int(math.ceil((total_span_sec + 1e-6) / slot_sec)))
+    else:
+        slot_sec = max(1800.0, math.ceil(total_span_sec / 5.0 / 600.0) * 600.0)
+        n_slots = max(2, int(math.ceil((total_span_sec + 1e-6) / slot_sec)))
+
+    slot_indices = np.clip((df["time_sec"].to_numpy(dtype=float) // slot_sec).astype(int), 0, n_slots - 1)
+    df["_slot_idx"] = slot_indices
+
+    slot_counts = pd.Series(slot_indices).value_counts()
+    peak_threshold = float(slot_counts.quantile(0.70)) if len(slot_counts) > 1 else 0.0
+
+    timeframes_meta = []
+    for s_idx in range(n_slots):
+        s_start_sec = s_idx * slot_sec
+        s_end_sec = min((s_idx + 1) * slot_sec, max(total_span_sec, slot_sec))
+        st_dt = min_dt + pd.Timedelta(seconds=s_start_sec)
+        en_dt = min_dt + pd.Timedelta(seconds=s_end_sec)
+        st_hm = st_dt.strftime("%H:%M")
+        en_hm = en_dt.strftime("%H:%M")
+        if st_hm == en_hm:
+            st_hm = st_dt.strftime("%H:%M:%S")
+            en_hm = en_dt.strftime("%H:%M:%S")
+        cnt_in_slot = int(slot_counts.get(s_idx, 0))
+        is_peak = 1 if cnt_in_slot >= peak_threshold else 0
+        tag_suffix = " (Cao điểm)" if is_peak else ""
+        timeframes_meta.append({
+            "slot_idx": s_idx,
+            "timeframe_code": f"TF_{s_idx+1}",
+            "timeframe_label": f"{st_hm} - {en_hm}{tag_suffix}",
+            "start_time_str": st_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time_str": en_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "start_epoch_sec": round(s_start_sec, 1),
+            "end_epoch_sec": round(s_end_sec, 1),
+            "duration_minutes": round(max(1.0, (s_end_sec - s_start_sec) / 60.0), 1),
+            "is_peak_timeframe": is_peak,
+        })
+
+    return df, timeframes_meta
+
