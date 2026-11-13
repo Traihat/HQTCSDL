@@ -267,4 +267,74 @@ def get_dynamic_filters(
     timeline_grp["avg_speed_kmh"] = timeline_grp["avg_speed_kmh"].round(2)
     timeline_grp["traffic_density_veh_km"] = timeline_grp["traffic_density_veh_km"].round(2)
     timeline_grp["traffic_flow_veh_h"] = timeline_grp["traffic_flow_veh_h"].round(2)
+  
+    # 5. Bảng tổng hợp theo từng Khu vực động trong bộ lọc hiện tại
+    zone_grp = (
+        metrics_df.groupby(["zone_id", "zone_name", "road_length_km"], as_index=False)
+        .agg(
+            total_vehicles=("vehicle_count", "sum"),
+            avg_speed_kmh=("avg_speed_kmh", "mean"),
+            avg_density_veh_km=("traffic_density_veh_km", "mean"),
+            max_density_veh_km=("traffic_density_veh_km", "max"),
+            avg_flow_veh_h=("traffic_flow_veh_h", "mean"),
+            max_hotspot_score=("hotspot_score", "max"),
+        )
+        .sort_values("avg_density_veh_km", ascending=False)
+    )
+    for col in ("avg_speed_kmh", "avg_density_veh_km", "max_density_veh_km", "avg_flow_veh_h", "max_hotspot_score"):
+        zone_grp[col] = zone_grp[col].round(2)
+
+    # 6. Lấy mẫu điểm tọa độ không gian (x_coord_m, y_coord_m) của bộ lọc hiện tại để vẽ biểu đồ Không gian
+    traj_where = [f"t.import_id IN ({placeholders})"]
+    traj_params: list = list(selected_ids)
+    if zone_code is not None:
+        traj_where.append("z.zone_code = ?")
+        traj_params.append(zone_code)
+    if timeframe_code is not None:
+        traj_where.append("tf.timeframe_code = ?")
+        traj_params.append(timeframe_code)
+    traj_df = pd.read_sql(
+        f"""
+        SELECT t.x_coord_m, t.y_coord_m, t.speed_kmh, t.vehicle_type, z.zone_name
+        FROM CleanedTrajectories t
+        JOIN DynamicZones z ON t.zone_id = z.zone_id
+        JOIN DynamicTimeFrames tf ON t.timeframe_id = tf.timeframe_id
+        WHERE {' AND '.join(traj_where)}
+        LIMIT 600
+        """,
+        conn,
+        params=traj_params,
+    )
+    conn.close()
+
+    return {
+        "has_data": True,
+        "empty_filter": False,
+        "filters": filters_meta,
+        "selected_zone": str(zone_id),
+        "selected_timeframe": str(timeframe_id),
+        "kpis": {
+            "total_vehicles": total_veh,
+            "car_count": car_cnt,
+            "motorbike_count": moto_cnt,
+            "bus_truck_count": bt_cnt,
+            "avg_speed_kmh": avg_speed,
+            "avg_density_veh_km": avg_density,
+            "max_density_veh_km": max_density,
+            "avg_flow_veh_h": avg_flow,
+            "dominant_congestion": dom_cong,
+        },
+        "peak_hour_detection": peak_info,
+        "hotspot_identification": {
+            "top_location": str(top_hs["hotspot_location"]),
+            "top_score": round(float(top_hs["hotspot_score"]), 3),
+            "top_congestion_level": str(top_hs["congestion_level"]),
+            "hotspots_list": top_hotspots_table,
+        },
+        "timeline_series": timeline_grp.to_dict(orient="records"),
+        "zone_breakdown": zone_grp.to_dict(orient="records"),
+        "spatial_points": traj_df.to_dict(orient="records"),
+        "selected_dataset_ids": selected_ids,
+    }
+
 
