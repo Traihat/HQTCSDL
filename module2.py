@@ -124,4 +124,147 @@ def get_dynamic_filters(
         "zones": zones_df.to_dict(orient="records"),
         "timeframes": tf_df.to_dict(orient="records"),
     }
+  def get_module2_dashboard_data(
+    zone_id: str | int = "ALL",
+    timeframe_id: str | int = "ALL",
+    db_path: Path = DB_PATH,
+    dataset_id: int | None = None,
+    dataset_ids: list[int] | None = None,
+) -> dict:
+    """
+    Truy vấn và tổng hợp toàn bộ chỉ số & biểu đồ của Module 2 theo đúng nút lọc
+    Khu vực (`zone_id`) và Khung giờ (`timeframe_id`) mà người dùng đang bấm chọn trên Web.
+    """
+    if dataset_ids:
+        dataset_ids = list(dict.fromkeys(int(value) for value in dataset_ids))
+    elif dataset_id is not None:
+        dataset_ids = [int(dataset_id)]
+    filters_meta = get_dynamic_filters(db_path, dataset_id, dataset_ids)
+    if not filters_meta["has_data"]:
+        return {
+            "has_data": False,
+            "message": "Chưa có dữ liệu! Vui lòng vào Module 1 kéo thả file dữ liệu (.xlsx / .csv) để xử lý trước.",
+        }
+
+    conn = get_connection(db_path)
+    if dataset_ids and len(filters_meta["imports"]) != len(dataset_ids):
+        conn.close()
+        return {
+            "has_data": False,
+            "message": "Một hoặc nhiều Dataset không tồn tại, đã lưu trữ hoặc chưa sẵn sàng.",
+        }
+    selected_dataset_id = int(filters_meta["import_info"]["import_id"])
+    selected_ids = dataset_ids or [selected_dataset_id]
+    placeholders = ",".join("?" for _ in selected_ids)
+    where_clauses = [f"m.import_id IN ({placeholders})"]
+    params: list = list(selected_ids)
+    zone_code = None
+    timeframe_code = None
+
+    if str(zone_id).upper() != "ALL":
+        zone_row = next(
+            (row for row in filters_meta["zones"] if int(row["zone_id"]) == int(zone_id)),
+            None,
+        )
+        if zone_row is None:
+            conn.close()
+            return {"has_data": True, "filters": filters_meta, "empty_filter": True}
+        zone_code = zone_row["zone_code"]
+        where_clauses.append("z.zone_code = ?")
+        params.append(zone_code)
+    if str(timeframe_id).upper() != "ALL":
+        timeframe_row = next(
+            (row for row in filters_meta["timeframes"] if int(row["timeframe_id"]) == int(timeframe_id)),
+            None,
+        )
+        if timeframe_row is None:
+            conn.close()
+            return {"has_data": True, "filters": filters_meta, "empty_filter": True}
+        timeframe_code = timeframe_row["timeframe_code"]
+        where_clauses.append("tf.timeframe_code = ?")
+        params.append(timeframe_code)
+
+    where_sql = " AND ".join(where_clauses)
+
+    metrics_df = pd.read_sql(
+        f"""
+        SELECT
+            m.*,
+            z.zone_code,
+            z.zone_name,
+            tf.timeframe_code,
+            z.road_length_km,
+            tf.timeframe_label
+        FROM TrafficPatternMetrics m
+        JOIN DynamicZones z ON m.zone_id = z.zone_id
+        JOIN DynamicTimeFrames tf ON m.timeframe_id = tf.timeframe_id
+        WHERE {where_sql}
+        ORDER BY m.window_index ASC, m.zone_id ASC
+        """,
+        conn,
+        params=params,
+    )
+
+    if metrics_df.empty:
+        conn.close()
+        return {
+            "has_data": True,
+            "filters": filters_meta,
+            "selected_zone": str(zone_id),
+            "selected_timeframe": str(timeframe_id),
+            "empty_filter": True,
+        }
+    metrics_df["zone_id"] = metrics_df["zone_code"]
+    metrics_df["timeframe_id"] = metrics_df["timeframe_code"]
+
+    # 1. Tổng hợp thẻ KPI cho bộ lọc hiện tại
+    total_veh = int(metrics_df["vehicle_count"].sum())
+    car_cnt = int(metrics_df["car_count"].sum())
+    moto_cnt = int(metrics_df["motorbike_count"].sum())
+    bt_cnt = int(metrics_df["bus_truck_count"].sum())
+    avg_speed = round(float(metrics_df["avg_speed_kmh"].mean()), 2)
+    avg_density = round(float(metrics_df["traffic_density_veh_km"].mean()), 2)
+    max_density = round(float(metrics_df["traffic_density_veh_km"].max()), 2)
+    avg_flow = round(float(metrics_df["traffic_flow_veh_h"].mean()), 2)
+    dom_cong = str(metrics_df["congestion_level"].mode().iloc[0])
+
+    # 2. Phát hiện Khung giờ cao điểm (Peak-hour detection)
+    peak_row = metrics_df.sort_values("traffic_density_veh_km", ascending=False).iloc[0]
+    peak_info = {
+        "window_time_label": str(peak_row["window_time_label"]),
+        "timeframe_label": str(peak_row["timeframe_label"]),
+        "zone_name": str(peak_row["zone_name"]),
+        "peak_density_veh_km": round(float(peak_row["traffic_density_veh_km"]), 2),
+        "peak_vehicles": int(peak_row["vehicle_count"]),
+        "peak_speed_kmh": round(float(peak_row["avg_speed_kmh"]), 2),
+    }
+
+    # 3. Nhận diện Điểm nóng ùn tắc (Congestion hotspot identification)
+    hotspot_df = metrics_df.sort_values("hotspot_score", ascending=False)
+    top_hs = hotspot_df.iloc[0]
+    top_hotspots_table = (
+        hotspot_df[[
+            "zone_name", "timeframe_label", "window_time_label",
+            "hotspot_location", "vehicle_count", "avg_speed_kmh",
+            "traffic_density_veh_km", "hotspot_score", "congestion_level",
+        ]]
+        .head(6)
+        .to_dict(orient="records")
+    )
+
+    # 4. Chuỗi thời gian theo mốc window_time_label để vẽ biểu đồ trên Dashboard Module 2
+    timeline_grp = (
+        metrics_df.groupby(["window_index", "window_time_label"], as_index=False)
+        .agg(
+            vehicle_count=("vehicle_count", "sum"),
+            avg_speed_kmh=("avg_speed_kmh", "mean"),
+            traffic_density_veh_km=("traffic_density_veh_km", "mean"),
+            traffic_flow_veh_h=("traffic_flow_veh_h", "mean"),
+            is_peak_hour=("is_peak_hour", "max"),
+        )
+        .sort_values("window_index")
+    )
+    timeline_grp["avg_speed_kmh"] = timeline_grp["avg_speed_kmh"].round(2)
+    timeline_grp["traffic_density_veh_km"] = timeline_grp["traffic_density_veh_km"].round(2)
+    timeline_grp["traffic_flow_veh_h"] = timeline_grp["traffic_flow_veh_h"].round(2)
 
