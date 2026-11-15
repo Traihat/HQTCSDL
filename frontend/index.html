@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urban Traffic Analytics Platform</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="stylesheet" href="/static/css/module1.css">
+    <link rel="stylesheet" href="/static/css/controls.css">
+    <link rel="stylesheet" href="/static/css/charts.css">
+    <link rel="stylesheet" href="/static/css/tables.css">
+    <link rel="stylesheet" href="/static/css/workspace.css">
+</head>
+<body>
+
+    <header class="top-header">
+        <div class="brand-wrap">
+            <div class="brand-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M3 17h18M5 17l2-6h10l2 6M8 11l1.5-4h5L16 11M4 20h2m12 0h2" />
+                    <circle cx="12" cy="4" r="1.5" />
+                </svg>
+            </div>
+            <div>
+                <h1>Urban Traffic Analytics</h1>
+                <div class="sub">UAV traffic intelligence platform</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="db-badge" role="status" aria-live="polite">
+                <span class="pulse-dot empty" id="header-pulse"></span>
+                <span id="header-db-status">Database: Đang trống (0 bản ghi)</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-shell">
+        <aside class="toolbar-container" aria-label="Điều hướng workspace">
+            <div class="sidebar-label">WORKSPACE</div>
+            <nav class="toolbar" aria-label="Các module">
+            <button class="tool-btn active" id="btn-tab-1" onclick="switchModule(1)" aria-current="page">
+                <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 9h16M8 5v4" /></svg></span>
+                <div class="tool-text">
+                    <span class="tool-step">MODULE 01</span>
+                    <div class="m-title">Dataset Management</div>
+                </div>
+            </button>
+            <button class="tool-btn" id="btn-tab-2" onclick="switchModule(2)">
+                <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h17M8 15v-4m4 4V7m4 8v-6m4 6v-9" /></svg></span>
+                <div class="tool-text">
+                    <span class="tool-step">MODULE 02</span>
+                    <div class="m-title">Pattern Analysis</div>
+                </div>
+            </button>
+            <button class="tool-btn" id="btn-tab-3" onclick="switchModule(3)">
+                <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 3 8-9M15 5h6v6" /></svg></span>
+                <div class="tool-text">
+                    <span class="tool-step">MODULE 03</span>
+                    <div class="m-title">Traffic Forecasting</div>
+                </div>
+            </button>
+            <button class="tool-btn" id="btn-tab-4" onclick="switchModule(4)">
+                <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 15l3-4 3 2 4-5" /></svg></span>
+                <div class="tool-text">
+                    <span class="tool-step">MODULE 04</span>
+                    <div class="m-title">Visualization</div>
+                </div>
+            </button>
+            <button class="tool-btn" id="btn-tab-5" onclick="switchModule(5)">
+                <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6m-5 0v7l-5 8a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-8V3M8 16h8" /></svg></span>
+                <div class="tool-text">
+                    <span class="tool-step">MODULE 05</span>
+                    <div class="m-title">Experiments</div>
+                </div>
+            </button>
+            <button class="tool-btn" id="btn-tab-6" onclick="switchModule(6)">
+                <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5m-9 4h5m-5 4h5" /></svg></span>
+                <div class="tool-text">
+                    <span class="tool-step">MODULE 06</span>
+                    <div class="m-title">Reports &amp; Export</div>
+                </div>
+            </button>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="sidebar-footer-dot"></span>
+                <span>Analytics workspace</span>
+            </div>
+        </aside>
+
+        <main class="main-wrap">
+
+        <!-- ========================================================================= -->
+        <!-- MODULE 1: TRAFFIC DATASET MANAGEMENT                                      -->
+        <!-- ========================================================================= -->
+        <section class="module-view active" id="view-module-1">
+            <div class="panel">
+                <div class="panel-title">
+                    <span>MODULE 1: TRAFFIC DATASET MANAGEMENT — TIỀN XỬ LÝ DỮ LIỆU &amp; QUẢN LÝ DATABASE</span>
+                    <span class="panel-subtitle">Hỗ trợ file .xlsx, .xls, .csv (Dung lượng tối đa 3 GB)</span>
+                </div>
+
+                <!-- Ô KÉO THẢ FILE -->
+                <div class="drop-zone" id="drop-area"
+                      onclick="document.getElementById('file-input').click()"
+                     ondragover="handleDragOver(event)"
+                     ondragleave="handleDragLeave(event)"
+                     ondrop="handleDrop(event)">
+                    <div class="drop-icon-circle" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                            <path d="M7 18a4 4 0 0 1-.7-7.94A6 6 0 0 1 17.8 9 4.5 4.5 0 0 1 17 18H7Z" />
+                            <path d="M12 15V9m-3 3 3-3 3 3" />
+                        </svg>
+                    </div>
+                    <div class="drop-btn-label">Hay keo file du lieu cua ban vao o nay</div>
+                    <div class="drop-hint">
+                        Kéo thả trực tiếp hoặc nhấp chuột để chọn file dữ liệu (<strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.csv</strong> — Giới hạn tối đa <strong>3 GB</strong>).
+                    </div>
+                    <div class="format-badges">
+                        <span class="fmt-pill"> Excel (.xlsx / .xls)</span>
+                        <span class="fmt-pill"> CSV (.csv)</span>
+                        <span class="fmt-pill"> Dung lượng tối đa: 3 GB</span>
+                        <span class="fmt-pill"> Tự động chia Khu vực &amp; Khung giờ</span>
+                    </div>
+                    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" multiple style="display:none" onchange="handleFileSelected(this.files)">
+                </div>
+
+                <!-- THANH TIẾN TRÌNH STREAMING FILE LỚN -->
+                <div class="progress-wrap" id="m1-progress-wrap">
+                    <div class="progress-header">
+                        <span id="m1-progress-text"> Đang đọc phân luồng dữ liệu...</span>
+                        <span id="m1-progress-pct">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="m1-progress-fill"></div>
+                    </div>
+                </div>
+
+                <!-- DÒNG THÔNG BÁO KẾT QUẢ -->
+                <div id="m1-status-banner" class="status-banner"></div>
+            </div>
+
+            <div class="panel" id="dataset-library-panel">
+                <div class="panel-title">
+                    <span>DATASET LIBRARY — DANH SÁCH DỮ LIỆU ĐÃ NẠP</span>
+                    <button type="button" class="btn-danger" onclick="handleClearAllDatabase()">Xóa toàn bộ dữ liệu Database</button>
+                </div>
+                <div class="table-wrap" id="dataset-library-table"></div>
+                <div class="dataset-pagination" id="dataset-pagination"></div>
+            </div>
+
+            <!-- 4 THẺ TÓM TẮT QUY TRÌNH TIỀN XỬ LÝ -->
+            <div class="pipeline-grid" id="m1-pipeline-cards"></div>
+
+            <!-- BẢNG QUẢN LÝ METADATA, PHIÊN BẢN, KIỂM ĐỊNH CHẤT LƯỢNG & XEM TRƯỚC DỮ LIỆU QUỸ ĐẠO -->
+            <div class="panel" id="m1-meta-preview-panel" style="display:none;">
+                <div class="grid-2">
+                    <div>
+                        <div class="chart-header">
+                            <span>1. Quản Lý Metadata, Phiên Bản &amp; Báo Cáo Kiểm Định Chất Lượng (Data Validation &amp; Version Metadata)</span>
+                            <span class="chart-badge">Quality &amp; Schema</span>
+                        </div>
+                        <div class="table-wrap" id="m1-metadata-wrap"></div>
+                    </div>
+                    <div>
+                        <div class="chart-header">
+                            <span>2. Xem Trước Tập Dữ Liệu Quỹ Đạo Đã Làm Sạch (Preview Datasets — CleanedTrajectories Sample)</span>
+                            <span class="chart-badge">Trajectory Preview</span>
+                        </div>
+                        <div class="table-wrap" id="m1-preview-wrap"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BẢNG KIỂM TRA DATABASE -->
+            <div class="panel">
+                <div class="panel-title">
+                    <span>TRẠNG THÁI CÁC BẢNG TRONG CƠ SỞ DỮ LIỆU ĐỘNG (UrbanTrafficDynamicDB)</span>
+                    <span class="panel-subtitle" id="m1-active-file-tag"></span>
+                </div>
+                <div class="table-wrap" id="m1-db-table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- MODULE 2: TRAFFIC PATTERN ANALYSIS                                        -->
+        <!-- ========================================================================= -->
+        <section class="module-view" id="view-module-2">
+            <div id="m2-empty" class="empty-placeholder" style="display:none;">
+                <h3> Database hiện đang trống</h3>
+                <p>Vui lòng quay lại <strong>Phím 1 (Module 1)</strong> và kéo thả file dữ liệu (<code>.xlsx</code> hoặc <code>.csv</code>) vào ô <em>"Hay keo file du lieu cua ban vao o nay"</em>.</p>
+            </div>
+
+            <div id="m2-content">
+                <div class="panel">
+                    <div class="panel-title">
+                        <span>MODULE 2: TRAFFIC PATTERN ANALYSIS — PHÂN TÍCH MẪU HÌNH GIAO THÔNG THEO KHU VỰC &amp; KHUNG GIỜ</span>
+                        <span class="panel-subtitle" id="m2-dataset-badge"></span>
+                    </div>
+
+                    <div class="dataset-analysis-filter">
+                        <label>Chọn Dataset
+                            <select id="m2-dataset-choice" aria-label="Chọn Dataset" onchange="loadModuleDataset(2)"></select>
+                        </label>
+                        <button class="btn-primary" type="button" onclick="loadModuleDataset(2)">Phân tích Dataset</button>
+                    </div>
+                    <div id="m2-dataset-status" class="status-banner" role="status" aria-live="polite"></div>
+
+                    <div class="filter-section">
+                        <div class="filter-row">
+                            <div class="filter-label"> Lọc theo Khu vực (Dynamic):</div>
+                            <div class="pill-group" id="m2-zone-buttons"></div>
+                        </div>
+                        <div class="filter-row">
+                            <div class="filter-label"> Lọc theo Khung giờ (Dynamic):</div>
+                            <div class="pill-group" id="m2-tf-buttons"></div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-grid-5" id="m2-kpi-cards"></div>
+
+                    <div class="grid-2">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>Diễn biến Mật độ (xe/km) &amp; Vận tốc TB (km/h) — Phát hiện Giờ Cao Điểm</span>
+                                <span class="chart-badge">Peak-Hour Detection</span>
+                            </div>
+                            <canvas id="canvas-m2-timeline" width="680" height="290"></canvas>
+                        </div>
+                        <div class="chart-card dark-radar">
+                            <div class="chart-header">
+                                <span>Bản đồ Radar Không gian – Thời gian Tọa độ Phương tiện UAV (X, Y)</span>
+                                <span class="chart-badge">Spatial-Temporal Radar</span>
+                            </div>
+                            <canvas id="canvas-m2-spatial" width="680" height="290"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div>
+                            <div class="chart-header"><span>Bảng Tổng Hợp Chỉ Số Theo Từng Khu Vực Động</span></div>
+                            <div class="table-wrap" id="m2-zone-table"></div>
+                        </div>
+                        <div>
+                            <div class="chart-header"><span>Danh Sách Điểm Nóng Ùn Tắc (Congestion Hotspots)</span></div>
+                            <div class="table-wrap" id="m2-hotspot-table"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- MODULE 3: FORECASTING MODULE (SPLIT ARIMA VS PROPHET + 2 DAYS + TIME)     -->
+        <!-- ========================================================================= -->
+        <section class="module-view" id="view-module-3">
+            <div id="m3-empty" class="empty-placeholder" style="display:none;">
+                <h3> Database hiện đang trống</h3>
+                <p>Vui lòng nạp dữ liệu ở <strong>Module 1</strong> trước khi chạy dự báo ARIMA &amp; Prophet.</p>
+            </div>
+
+            <div id="m3-content">
+                <div class="panel">
+                    <div class="panel-title">
+                        <span>MODULE 3: FORECASTING MODULE — DỰ BÁO TÁCH ĐÔI ARIMA &amp; PROPHET (CÓ FILTER DỰ BÁO 2 NGÀY SAU &amp; FILTER THỜI GIAN)</span>
+                        <span class="panel-subtitle" id="m3-filter-summary-badge">Đánh giá độc lập MAE, RMSE, MAPE, R² &amp; So sánh trực tiếp</span>
+                    </div>
+
+                    <div class="dataset-analysis-filter">
+                        <label>Chọn Dataset
+                            <select id="m3-dataset-choice" aria-label="Chọn Dataset" onchange="loadModuleDataset(3)"></select>
+                        </label>
+                        <button class="btn-primary" type="button" onclick="loadModuleDataset(3)">Dự báo Dataset</button>
+                    </div>
+                    <div id="m3-dataset-status" class="status-banner" role="status" aria-live="polite"></div>
+
+                    <div id="m3-single-dataset-view">
+                    <!-- 3 TẦNG BỘ LỌC ĐỘNG CỦA MODULE 3 -->
+                    <div class="filter-section">
+                        <div class="filter-row">
+                            <div class="filter-label"> Chọn Khu vực dự báo:</div>
+                            <div class="pill-group" id="m3-zone-buttons"></div>
+                        </div>
+                        <div class="filter-row">
+                            <div class="filter-label"> Filter Dự báo 2 ngày sau:</div>
+                            <div class="pill-group" id="m3-horizon-buttons"></div>
+                        </div>
+                        <div class="filter-row">
+                            <div class="filter-label"> Filter Thời gian / Khung giờ:</div>
+                            <div class="pill-group" id="m3-tf-buttons"></div>
+                        </div>
+                    </div>
+
+                    <!-- BỐ CỤC TÁCH ĐÔI: TRÁI = ARIMA | PHẢI = PROPHET -->
+                    <div class="split-forecast">
+                        <div class="forecast-half">
+                            <div class="f-banner">
+                                <span id="m3-arima-title"> DASHBOARD DỰ BÁO ARIMA</span>
+                                <span id="m3-arima-badge" style="font-size:12px;"></span>
+                            </div>
+                            <div class="kpi-grid-4" id="m3-arima-kpis"></div>
+                            <canvas id="canvas-m3-arima" width="640" height="280"></canvas>
+                        </div>
+
+                        <div class="forecast-half prophet-side">
+                            <div class="f-banner">
+                                <span id="m3-prophet-title"> DASHBOARD DỰ BÁO PROPHET</span>
+                                <span id="m3-prophet-badge" style="font-size:12px;"></span>
+                            </div>
+                            <div class="kpi-grid-4" id="m3-prophet-kpis"></div>
+                            <canvas id="canvas-m3-prophet" width="640" height="280"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- BẢNG CHI TIẾT CHUỖI THỜI GIAN & ĐIỂM DỰ BÁO (TIME-SERIES GENERATION & FORECAST POINTS) -->
+                    <div style="margin-bottom:18px;">
+                        <div class="chart-header">
+                            <span>Chuỗi Thời Gian &amp; Chi Tiết Điểm Dự Báo Tương Lai (Bảng ForecastPoints — Ngày 0, Ngày +1, Ngày +2)</span>
+                            <span class="chart-badge" id="m3-points-badge">Time-Series &amp; 95% CI</span>
+                        </div>
+                        <div class="table-wrap sticky-table-wrap" id="m3-points-table"></div>
+                    </div>
+
+                    <!-- NÚT BẤM SO SÁNH CẢ ARIMA VÀ PROPHET -->
+                    <div class="compare-center-bar">
+                        <button class="btn-compare" onclick="triggerCompareArimaProphet()">
+                            So sánh cả ARIMA và Prophet
+                        </button>
+                    </div>
+
+                    <!-- KHU VỰC HIỂN THỊ SAU KHI BẤM NÚT SO SÁNH -->
+                    <div id="m3-compare-result-area" style="display:none;">
+                        <div class="grid-2">
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <span>Biểu đồ Đối chiếu Trực tiếp: Thực tế / Tham chiếu vs ARIMA vs Prophet</span>
+                                    <span class="chart-badge" id="m3-overlay-badge">Overlay Comparison</span>
+                                </div>
+                                <canvas id="canvas-m3-compare" width="680" height="265"></canvas>
+                            </div>
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <span>Bảng So sánh Chi tiết 4 Chỉ số Đánh giá (MAE, RMSE, MAPE, R²)</span>
+                                    <span class="chart-badge" id="m3-winner-pill"></span>
+                                </div>
+                                <div class="table-wrap" id="m3-compare-table"></div>
+                            </div>
+                        </div>
+                        <!-- 1 DÒNG NHẬN XÉT Ở DƯỚI DASHBOARD -->
+                        <div id="m3-commentary-box" class="commentary-line"></div>
+                    </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- MODULE 4: VISUALIZATION DASHBOARD                                         -->
+        <!-- ========================================================================= -->
+        <section class="module-view" id="view-module-4">
+            <div id="m4-empty" class="empty-placeholder" style="display:none;">
+                <h3> Database hiện đang trống</h3>
+                <p>Vui lòng nạp dữ liệu ở <strong>Module 1</strong> để xem Bảng điều khiển Trực quan hóa Tổng hợp.</p>
+            </div>
+
+            <div id="m4-content">
+                <div class="panel">
+                    <div class="panel-title">
+                        <span>MODULE 4: VISUALIZATION DASHBOARD — BẢNG ĐIỀU KHIỂN TRỰC QUAN HÓA TOÀN MẠNG LƯỚI</span>
+                        <span class="panel-subtitle">KPIs &bull; Forecast Accuracy &bull; Peak Periods &bull; Congestion Level &bull; 5 Interactive Charts</span>
+                    </div>
+
+                    <div class="dataset-analysis-filter">
+                        <label>Chọn Dataset
+                            <select id="m4-dataset-choice" aria-label="Chọn Dataset" onchange="loadModuleDataset(4)"></select>
+                        </label>
+                        <button class="btn-primary" type="button" onclick="loadModuleDataset(4)">Áp dụng Dataset</button>
+                    </div>
+                    <div id="m4-dataset-status" class="status-banner" role="status" aria-live="polite"></div>
+                    <div class="kpi-grid-5" id="m4-kpi-cards"></div>
+
+                    <div class="grid-2">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>1. Heatmap — Ma trận Nhiệt Mật độ Giao thông (Khu vực × Khung giờ)</span>
+                                <span class="chart-badge">Spatial-Temporal Matrix</span>
+                            </div>
+                            <div class="chart-canvas-scroll">
+                                <canvas class="heatmap-wide-canvas" id="canvas-m4-heatmap" width="680" height="285"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>2. Traffic Trend Chart — Xu hướng Lưu lượng Dòng xe (xe/giờ)</span>
+                                <span class="chart-badge">Flow Dynamics</span>
+                            </div>
+                            <canvas id="canvas-m4-trend" width="680" height="285"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>3. Density Chart — Biến thiên Mật độ Phương tiện (xe/km)</span>
+                                <span class="chart-badge">Density Profile</span>
+                            </div>
+                            <canvas id="canvas-m4-density" width="680" height="285"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>4. Speed Chart — Biến thiên Vận tốc Trung bình (km/h)</span>
+                                <span class="chart-badge">Velocity Profile</span>
+                            </div>
+                            <canvas id="canvas-m4-speed" width="680" height="285"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>5A. Distribution Chart — Phân phối Tần suất Vận tốc Phương tiện UAV</span>
+                                <span class="chart-badge">Speed Histogram</span>
+                            </div>
+                            <canvas id="canvas-m4-dist" width="680" height="265"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>5B. Forecast Overview Chart — So sánh Sai số RMSE ARIMA vs Prophet</span>
+                                <span class="chart-badge">Model Benchmark</span>
+                            </div>
+                            <canvas id="canvas-m4-forecast" width="680" height="265"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- MODULE 5: EXPERIMENT MANAGEMENT                                           -->
+        <!-- ========================================================================= -->
+        <section class="module-view" id="view-module-5">
+            <div id="m5-empty" class="empty-placeholder" style="display:none;">
+                <h3> Database hiện đang trống</h3>
+                <p>Vui lòng nạp dữ liệu ở <strong>Module 1</strong> trước khi cấu hình và chạy thực nghiệm ở Module 5.</p>
+            </div>
+
+            <div id="m5-content">
+                <div class="panel">
+                    <div class="panel-title">
+                        <span>MODULE 5: EXPERIMENT MANAGEMENT — QUẢN LÝ THỰC NGHIỆM, SIÊU THAM SỐ &amp; HỖ TRỢ TÁI LẬP NGHIÊN CỨU</span>
+                        <span class="panel-subtitle">Experiment Config &bull; Hyperparameter Recording &bull; Result Storage &bull; Reproducibility SHA-256 &bull; Model Comparison</span>
+                    </div>
+
+                    <div class="dataset-analysis-filter">
+                        <label>Chọn Dataset
+                            <select id="m5-dataset-choice" aria-label="Chọn Dataset" onchange="loadModuleDataset(5)"></select>
+                        </label>
+                        <button class="btn-primary" type="button" onclick="loadModuleDataset(5)">Áp dụng Dataset</button>
+                    </div>
+                    <div id="m5-dataset-status" class="status-banner" role="status" aria-live="polite"></div>
+
+                    <!-- 5 THẺ KPI CỦA MODULE 5 -->
+                    <div class="kpi-grid-5" id="m5-kpi-cards"></div>
+
+                    <!-- FORM CẤU HÌNH & CHẠY THỰC NGHIỆM MỚI -->
+                    <div class="exp-form-grid">
+                        <div class="form-field">
+                            <label>1. Khu vực thực nghiệm (Dynamic Zone)</label>
+                            <select id="m5-cfg-zone"></select>
+                        </div>
+                        <div class="form-field">
+                            <label>2. Khoảng gộp thời gian (Temporal Interval)</label>
+                            <select id="m5-cfg-interval">
+                                <option value="30">30 giây (High-Resolution 30s)</option>
+                                <option value="60" selected>60 giây (Standard 1 phút)</option>
+                                <option value="300">300 giây (Macro 5 phút)</option>
+                                <option value="900">900 giây (Horizon 15 phút)</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label>3. Siêu tham số ARIMA (p, d, q)</label>
+                            <select id="m5-cfg-arima">
+                                <option value="ARIMA(1,1,0)">ARIMA(1, 1, 0) — Quán tính bậc 1</option>
+                                <option value="ARIMA(1,1,1)" selected>ARIMA(1, 1, 1) — ARMA kết hợp</option>
+                                <option value="ARIMA(2,1,0)">ARIMA(2, 1, 0) — Tự hồi quy bậc 2</option>
+                                <option value="ARIMA(1,0,1)">ARIMA(1, 0, 1) — Chuỗi dừng</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label>4. Bậc Fourier Prophet (K) &amp; Changepoint</label>
+                            <select id="m5-cfg-prophet">
+                                <option value="2|0.10">Fourier K=2 | Changepoint=0.10</option>
+                                <option value="3|0.15" selected>Fourier K=3 | Changepoint=0.15</option>
+                                <option value="4|0.25">Fourier K=4 | Changepoint=0.25</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label>5. Tỷ lệ phân chia Train / Test</label>
+                            <select id="m5-cfg-train">
+                                <option value="0.70">70% Train / 30% Test</option>
+                                <option value="0.75" selected>75% Train / 25% Test</option>
+                                <option value="0.80">80% Train / 20% Test</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label>6. Random Seed (Tái lập kết quả)</label>
+                            <input type="number" id="m5-cfg-seed" value="42" min="1" max="99999">
+                        </div>
+                        <div class="form-field">
+                            <label>7. Phiên bản Dữ liệu (Dataset Version)</label>
+                            <input type="text" id="m5-cfg-version" value="v2.0-UAV-Clean">
+                        </div>
+                        <div class="form-field" style="justify-content:flex-end;">
+                            <button class="btn-run-exp" onclick="handleRunCustomExperiment()">
+                                Chạy &amp; Lưu Thực Nghiệm Mới
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="m5-status-banner" class="status-banner" style="margin-bottom:18px;"></div>
+
+                    <!-- 2 BIỂU ĐỒ SO SÁNH THỰC NGHIỆM & KHOẢNG GỘP THỜI GIAN -->
+                    <div class="grid-2">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>So sánh Sai số RMSE giữa các Lần chạy Thực nghiệm (Experiment Runs)</span>
+                                <span class="chart-badge">Model Comparison</span>
+                            </div>
+                            <canvas id="canvas-m5-runs" width="680" height="275"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <span>Đánh giá Tác động Khoảng gộp Thời gian (30s / 60s / 300s / 900s) đến RMSE</span>
+                                <span class="chart-badge">Temporal Aggregation Impact</span>
+                            </div>
+                            <canvas id="canvas-m5-temporal" width="680" height="275"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- BẢNG LƯU TRỮ SIÊU THAM SỐ & MÃ BĂM TÁI LẬP -->
+                    <div class="chart-header">
+                        <span>Bảng Lưu Trữ Siêu Tham Số, Kết Quả Đánh Giá &amp; Mã Băm Tái Lập (Bảng ExperimentRuns)</span>
+                        <div style="display:flex;gap:10px;align-items:center;">
+                            <button class="btn-repro" onclick="exportExperimentRegistryToExcel()" style="background:#059669;color:#fff;border-color:#047857;">
+                                 Xuất Báo Cáo Thực Nghiệm (.xls)
+                            </button>
+                            <span class="chart-badge">Reproducibility Registry</span>
+                        </div>
+                    </div>
+                    <div class="table-wrap" id="m5-experiments-table"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- MODULE 6: REPORTING (TRAFFIC, FORECAST +2 DAYS, PERFORMANCE, PDF & EXCEL) -->
+        <!-- ========================================================================= -->
+        <section class="module-view" id="view-module-6">
+            <div id="m6-empty" class="empty-placeholder" style="display:none;">
+                <h3> Database hiện đang trống</h3>
+                <p>Vui lòng nạp dữ liệu ở <strong>Module 1</strong> trước khi kết xuất Báo cáo PDF / Excel ở Module 6.</p>
+            </div>
+
+            <div id="m6-content">
+                <div class="panel">
+                    <div class="panel-title">
+                        <span>MODULE 6: REPORTING — BÁO CÁO PHÂN TÍCH GIAO THÔNG, DỰ BÁO ĐA NGÀY &amp; XUẤT FILE PDF / EXCEL</span>
+                        <span class="panel-subtitle" id="m6-dataset-tag">Traffic Analysis &bull; Forecast (+2 Days) &bull; Performance Reports</span>
+                    </div>
+
+                    <div class="dataset-analysis-filter">
+                        <label>Chọn Dataset
+                            <select id="m6-dataset-choice" aria-label="Chọn Dataset" onchange="loadModuleDataset(6)"></select>
+                        </label>
+                        <button class="btn-primary" type="button" onclick="loadModuleDataset(6)">Áp dụng Dataset</button>
+                    </div>
+                    <div id="m6-dataset-status" class="status-banner" role="status" aria-live="polite"></div>
+
+                    <!-- THANH ĐIỀU KHIỂN CHỌN LOẠI BÁO CÁO & XUẤT PDF / EXCEL -->
+                    <div class="export-bar">
+                        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+                            <div>
+                                <div style="font-size:11px;font-weight:800;color:#93c5fd;text-transform:uppercase;margin-bottom:4px;">Loại Báo Cáo Kết Xuất</div>
+                                <select id="m6-report-type" onchange="renderModule6()" style="padding:9px 14px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-weight:700;font-size:13px;">
+                                    <option value="Comprehensive_Full"> Báo Cáo Tổng Hợp Toàn Hệ Thống (Full 6-Module Report)</option>
+                                    <option value="Traffic_Analysis"> Báo Cáo Phân Tích Mẫu Hình &amp; Điểm Nóng Ùn Tắc (Traffic Analysis Report)</option>
+                                    <option value="Forecast_2Days"> Báo Cáo Dự Báo Ngắn Hạn &amp; 2 Ngày Tiếp Theo (Forecast Report +48h)</option>
+                                    <option value="Performance_Experiment"> Báo Cáo Đánh Giá Hiệu Năng &amp; Thực Nghiệm Tái Lập (Performance Report)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <div style="font-size:11px;font-weight:800;color:#93c5fd;text-transform:uppercase;margin-bottom:4px;">Phạm Vi Khu Vực</div>
+                                <select id="m6-zone-scope" onchange="renderModule6()" style="padding:9px 14px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-weight:700;font-size:13px;"></select>
+                            </div>
+                        </div>
+                        <div class="export-btn-group">
+                            <button class="btn-export-pdf" onclick="handleExportReport('PDF')">
+                                 Xuất Báo Cáo PDF (PDF Export)
+                            </button>
+                            <button class="btn-export-excel" onclick="handleExportReport('EXCEL')">
+                                 Xuất Báo Cáo Excel (Excel Export)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="m6-export-banner" class="status-banner" style="margin-bottom:18px;"></div>
+
+                    <!-- PHẦN 1: BÁO CÁO PHÂN TÍCH MẪU HÌNH GIAO THÔNG -->
+                    <div id="m6-sec-traffic" style="margin-bottom:22px;">
+                        <div class="chart-header">
+                            <span>1. Traffic Analysis Report — Tổng Hợp Lưu Lượng, Vận Tốc, Mật Độ &amp; Điểm Nóng Theo Khu Vực Động</span>
+                            <span class="chart-badge">Module 2 Analytics</span>
+                        </div>
+                        <div class="table-wrap" id="m6-traffic-table"></div>
+                    </div>
+
+                    <!-- PHẦN 2: BÁO CÁO DỰ BÁO NGẮN HẠN & 2 NGÀY TIẾP THEO (+48H) -->
+                    <div id="m6-sec-forecast" style="margin-bottom:22px;">
+                        <div class="grid-2">
+                            <div>
+                                <div class="chart-header">
+                                    <span>2A. Forecast Model Report — Đối Chiếu Độ Chính Xác ARIMA vs Prophet</span>
+                                    <span class="chart-badge">MAE / RMSE / MAPE / R²</span>
+                                </div>
+                                <div class="table-wrap" id="m6-forecast-table"></div>
+                            </div>
+                            <div>
+                                <div class="chart-header">
+                                    <span>2B. Multi-Day Horizon Report — Dự Báo Cho Ngày Gốc, Ngày +1 (+24h) &amp; Ngày +2 (+48h)</span>
+                                    <span class="chart-badge">+2 Days Forecast</span>
+                                </div>
+                                <div class="table-wrap" id="m6-multiday-table"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PHẦN 3: BÁO CÁO HIỆU NĂNG THỰC NGHIỆM & LỊCH SỬ XUẤT BÁO CÁO -->
+                    <div id="m6-sec-performance">
+                        <div class="grid-2">
+                            <div>
+                                <div class="chart-header">
+                                    <span>3A. Performance &amp; Reproducibility Report — Kết Quả Thực Nghiệm Đa Cấu Hình</span>
+                                    <span class="chart-badge">Module 5 Experiments</span>
+                                </div>
+                                <div class="table-wrap" id="m6-experiment-table"></div>
+                            </div>
+                            <div>
+                                <div class="chart-header">
+                                    <span>3B. Nhật Ký Kết Xuất Báo Cáo Đã Lưu Trong Database (Bảng GeneratedReports)</span>
+                                    <span class="chart-badge">Export Audit Log</span>
+                                </div>
+                                <div class="table-wrap" id="m6-history-table"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        </main>
+    </div>
+
+    <script src="/static/js/presets.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/module1.js"></script>
+    <script src="/static/js/module2.js"></script>
+    <script src="/static/js/module3.js"></script>
+    <script src="/static/js/module4.js"></script>
+    <script src="/static/js/module5.js"></script>
+    <script src="/static/js/module6.js"></script>
+    <script src="/static/js/charts.js"></script>
+</body>
+</html>
